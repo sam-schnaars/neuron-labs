@@ -118,8 +118,8 @@ class ChatFlow {
           });
         }
         display({
-          status: "idle",
-          emoji: "😴",
+          status: "resting",
+          emoji: "🇺🇸",
           RGB: "#000055",
           ...(getCurrentStatus().text === "Listening..."
             ? {
