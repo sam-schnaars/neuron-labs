@@ -24,9 +24,19 @@ This project demonstrates how to use the GROK voice agent API through LiveKit Ag
 You need a LiveKit server running. Choose one option:
 
 **Option A: Local Development Server (Easiest)**
+
+**Using Docker (Recommended):**
 ```bash
-# Install LiveKit CLI
-npm install -g livekit-cli
+docker run --rm -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server --dev
+```
+
+**Or Download Binary:**
+```bash
+# Download from: https://github.com/livekit/livekit/releases
+# For Raspberry Pi (ARM64):
+wget https://github.com/livekit/livekit/releases/latest/download/livekit-server_linux_arm64
+chmod +x livekit-server_linux_arm64
+sudo mv livekit-server_linux_arm64 /usr/local/bin/livekit-server
 
 # Start local server
 livekit-server --dev
@@ -170,9 +180,36 @@ For Raspberry Pi with GPIO button control (e.g., Whisplay HAT):
    ```
 
 3. **Set up LiveKit server:**
-   - LiveKit CLI should already be installed by `install_dependencies.sh`
-   - Start server: `livekit-server --dev` (in a separate terminal, or set up as a service)
-   - Or use LiveKit Cloud and update `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `.env`
+   
+   **Option A: Automatic Installation (Recommended for Raspberry Pi)**
+   ```bash
+   bash install_livekit_server.sh
+   ```
+   This script will automatically detect your architecture and download the correct binary.
+   
+   **Option B: Docker**
+   ```bash
+   docker run --rm -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server --dev
+   ```
+   Note: Docker may be resource-intensive on Pi Zero 2.
+   
+   **Option C: Manual Binary Download**
+   - Visit: https://github.com/livekit/livekit/releases
+   - Download binary for your architecture:
+     - Pi Zero 2 (32-bit OS): `livekit-server_linux_arm`
+     - Pi Zero 2 (64-bit OS): `livekit-server_linux_arm64`
+   - Make executable: `chmod +x livekit-server_linux_arm*`
+   - Move to PATH: `sudo mv livekit-server_linux_arm* /usr/local/bin/livekit-server`
+   - Start: `livekit-server --dev`
+   
+   **Option D: LiveKit Cloud (No installation)**
+   - Sign up at: https://cloud.livekit.io
+   - Update `.env` with your cloud credentials:
+     ```
+     LIVEKIT_URL=wss://your-project.livekit.cloud
+     LIVEKIT_API_KEY=your_api_key
+     LIVEKIT_API_SECRET=your_api_secret
+     ```
 
 ### Usage
 

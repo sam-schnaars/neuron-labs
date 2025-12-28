@@ -119,24 +119,50 @@ else
     echo "✅ npm is available: $(npm -v)"
 fi
 
-# Install LiveKit CLI globally
+# Install LiveKit Server
 echo ""
-echo "📦 Installing LiveKit CLI..."
+echo "📦 Installing LiveKit Server..."
 if command_exists livekit-server; then
-    echo "✅ LiveKit CLI is already installed"
+    echo "✅ LiveKit Server is already installed"
 else
-    echo "Installing livekit-cli..."
-    # Use npm from nvm (no sudo needed for user installs with nvm)
-    npm install -g livekit-cli
+    echo "Installing LiveKit Server..."
+    echo ""
+    echo "LiveKit Server can be installed in several ways:"
+    echo "1. Using Docker (recommended for production)"
+    echo "2. Downloading binary directly"
+    echo "3. Building from source"
+    echo ""
+    echo "For development, we'll try to install via npm or provide instructions."
     
-    if command_exists livekit-server; then
-        echo "✅ LiveKit CLI installed successfully"
-    else
-        echo "⚠️  Warning: LiveKit CLI installation may have failed"
-        echo "   The command may not be in PATH. Try:"
-        echo "   1. source ~/.bashrc"
-        echo "   2. Or run: npm install -g livekit-cli"
-        echo "   3. Then check: ~/.nvm/versions/node/v20.*/bin/livekit-server"
+    # Try installing via npm (the package might be @livekit/server or similar)
+    if npm install -g @livekit/server 2>/dev/null; then
+        if command_exists livekit-server; then
+            echo "✅ LiveKit Server installed via npm"
+        fi
+    fi
+    
+    # If still not found, provide manual installation instructions
+    if ! command_exists livekit-server; then
+        echo ""
+        echo "⚠️  LiveKit Server not found after npm install attempt."
+        echo ""
+        echo "📋 Manual Installation Options:"
+        echo ""
+        echo "Option 1: Install via Docker (Recommended)"
+        echo "  docker run --rm -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server --dev"
+        echo ""
+        echo "Option 2: Download Binary"
+        echo "  Visit: https://github.com/livekit/livekit/releases"
+        echo "  Download the binary for your architecture"
+        echo "  Make it executable: chmod +x livekit-server"
+        echo "  Move to PATH: sudo mv livekit-server /usr/local/bin/"
+        echo ""
+        echo "Option 3: Use LiveKit Cloud (No installation needed)"
+        echo "  Sign up at: https://cloud.livekit.io"
+        echo "  Update .env with your cloud credentials"
+        echo ""
+        echo "For now, you can run LiveKit in Docker or use LiveKit Cloud."
+        echo "The run_grokie.sh script will work once LiveKit server is accessible."
     fi
 fi
 
