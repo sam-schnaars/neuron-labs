@@ -196,10 +196,9 @@ def main():
         print(f"⚠️  Event detection failed: {e}")
         print("   Falling back to polling mode (less efficient but more reliable)")
         print("   This is normal if another process is using GPIO.")
-        global use_polling, last_button_state
-        use_polling = True
         # Initialize button state for polling
         last_button_state = GPIO.input(BUTTON_PIN)
+        use_polling = True
     
     try:
         # Keep the script running
