@@ -132,7 +132,7 @@ async def main():
                 print("   Audio may still play through default output")
     
     @room.on("data_received")
-    def on_data_received(data: rtc.DataPacket, participant: rtc.RemoteParticipant, kind: rtc.DataPacket_Kind):
+    def on_data_received(data: rtc.DataPacket, participant: rtc.RemoteParticipant, kind: rtc.DataPacketKind):
         """Handle data packets (may contain text/transcription)."""
         try:
             text = data.data.decode('utf-8')
