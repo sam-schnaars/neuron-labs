@@ -38,7 +38,20 @@ def cleanup():
         except Exception as e:
             print(f"Error terminating process: {e}")
         grok_process = None
-    GPIO.cleanup()
+    
+    # Remove event detection before cleanup (matching whisplay pattern)
+    try:
+        GPIO.remove_event_detect(BUTTON_PIN)
+    except (RuntimeError, ValueError):
+        # Event detection might not exist, that's fine
+        pass
+    
+    try:
+        GPIO.cleanup()
+    except Exception as e:
+        # GPIO might already be cleaned up or in use
+        pass
+    
     print("Cleanup complete.")
 
 
@@ -129,19 +142,51 @@ def main():
     print("\nPress the button to toggle GROK connection on/off")
     print("Press Ctrl+C to exit\n")
     
-    # Set up GPIO
+    # Check if GPIO is already set up (might be from another process)
+    # Try to remove any existing event detection first
+    try:
+        GPIO.remove_event_detect(BUTTON_PIN)
+    except (RuntimeError, ValueError):
+        # No existing event detection, that's fine
+        pass
+    
+    # Set up GPIO (matching whisplay's approach)
+    # Don't call cleanup first - that might interfere with other processes
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
-    GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    
+    try:
+        GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    except RuntimeError as e:
+        print(f"❌ Error setting up GPIO pin {BUTTON_PIN}: {e}")
+        print("   The pin might be in use by another process (e.g., whisplay chatbot).")
+        print("   Make sure the whisplay chatbot is not running.")
+        print("   Or the GPIO might need to be cleaned up first.")
+        sys.exit(1)
     
     # Set up button event detection
     # Use FALLING edge to detect button press (HIGH to LOW)
-    GPIO.add_event_detect(
-        BUTTON_PIN,
-        GPIO.FALLING,
-        callback=button_press_event,
-        bouncetime=300  # 300ms debounce
-    )
+    # Note: whisplay uses GPIO.BOTH with bouncetime=50, but we use FALLING with 300ms
+    try:
+        GPIO.add_event_detect(
+            BUTTON_PIN,
+            GPIO.FALLING,
+            callback=button_press_event,
+            bouncetime=300  # 300ms debounce (whisplay uses 50ms)
+        )
+    except RuntimeError as e:
+        print(f"❌ Error adding event detection: {e}")
+        print("   The GPIO pin might already have event detection active.")
+        print("   This can happen if:")
+        print("   1. The whisplay chatbot is running (using the same pin)")
+        print("   2. Another instance of this script is running")
+        print("   3. GPIO wasn't properly cleaned up from a previous run")
+        print("")
+        print("   Solutions:")
+        print("   1. Stop the whisplay chatbot: pkill -f chatbot")
+        print("   2. Check for other instances: ps aux | grep grokie")
+        print("   3. Try cleaning GPIO manually (requires root): sudo python3 -c 'import RPi.GPIO as GPIO; GPIO.setmode(GPIO.BOARD); GPIO.cleanup()'")
+        sys.exit(1)
     
     try:
         # Keep the script running
