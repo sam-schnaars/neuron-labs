@@ -94,8 +94,28 @@ if [ ${#missing_packages[@]} -gt 0 ]; then
     echo "   Continuing anyway..."
 fi
 
+# Check if LiveKit server is running
+echo "Checking if LiveKit server is running..."
+if command -v nc >/dev/null 2>&1; then
+    if nc -z localhost 7880 2>/dev/null; then
+        echo "✅ LiveKit server is running on port 7880"
+    else
+        echo "❌ LiveKit server is NOT running on port 7880"
+        echo ""
+        echo "   Please start LiveKit server first:"
+        echo "     livekit-server --dev"
+        echo ""
+        echo "   Or check if it's running on a different port."
+        echo "   The agent will try to connect anyway..."
+    fi
+else
+    echo "⚠️  Cannot check LiveKit server (netcat not available)"
+    echo "   Make sure LiveKit server is running: livekit-server --dev"
+fi
+
 # Start GROK agent server if configured
 if [ "$serve_grok_agent" = true ]; then
+    echo ""
     echo "Starting GROK agent server..."
     if [ "$use_venv" = true ]; then
         python3 grok_voice_agent.py &
@@ -104,6 +124,7 @@ if [ "$serve_grok_agent" = true ]; then
     fi
     GROK_AGENT_PID=$!
     echo "GROK agent server started (PID: $GROK_AGENT_PID)"
+    echo "   It will retry connecting to LiveKit if not available"
     sleep 3  # Give server time to start
 else
     echo ""
