@@ -7,6 +7,7 @@ import asyncio
 import os
 import sys
 import subprocess
+import threading
 from dotenv import load_dotenv
 from livekit import rtc, api
 
@@ -68,6 +69,68 @@ def setup_audio_output():
         return None
 
 
+class ALSAAudioSink:
+    """Custom audio sink that plays audio through ALSA using aplay."""
+    def __init__(self, sound_card_index="1"):
+        self.sound_card_index = sound_card_index
+        self.process = None
+        self.running = False
+        
+    def start(self, sample_rate=24000, channels=1):
+        """Start the aplay process."""
+        try:
+            # Start aplay process to play raw PCM audio
+            # Format: 16-bit signed little-endian, configurable sample rate and channels
+            cmd = [
+                "aplay",
+                "-f", "S16_LE",  # 16-bit signed little-endian
+                "-c", str(channels),  # Channels (1=mono, 2=stereo)
+                "-r", str(sample_rate),  # Sample rate
+                "-D", f"hw:{self.sound_card_index},0",  # Direct hardware access
+                "-"  # Read from stdin
+            ]
+            print(f"   Starting aplay: {' '.join(cmd)}")
+            self.process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE
+            )
+            self.running = True
+            print(f"✅ ALSA audio sink started (aplay process, {channels} channel(s), {sample_rate}Hz)")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to start ALSA audio sink: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def write_audio(self, audio_data: bytes):
+        """Write audio data to the aplay process."""
+        if self.process and self.process.stdin and self.running:
+            try:
+                self.process.stdin.write(audio_data)
+                self.process.stdin.flush()
+            except Exception as e:
+                print(f"⚠️  Error writing audio: {e}")
+                self.running = False
+    
+    def stop(self):
+        """Stop the audio sink."""
+        self.running = False
+        if self.process:
+            try:
+                self.process.stdin.close()
+                self.process.terminate()
+                self.process.wait(timeout=2)
+            except:
+                try:
+                    self.process.kill()
+                except:
+                    pass
+            self.process = None
+
+
 async def main():
     """Main function to connect and handle voice interaction."""
     print("🎤 GROK Voice Agent - Raspberry Pi Client")
@@ -77,7 +140,16 @@ async def main():
     print("=" * 50)
     
     # Set up audio output (like whisplay does)
-    setup_audio_output()
+    card_index = setup_audio_output()
+    if not card_index:
+        card_index = "1"  # Default fallback
+    
+    # Set ALSA environment variables to use the correct sound card
+    os.environ['ALSA_CARD'] = card_index
+    os.environ['ALSA_PCM_DEVICE'] = "0"
+    
+    # Create custom audio sink for ALSA playback (as fallback)
+    audio_sink = ALSAAudioSink(sound_card_index=card_index)
     
     # Generate access token
     print("\nGenerating access token...")
@@ -114,22 +186,37 @@ async def main():
             print(f"   Track name: {track.name}")
             print(f"   Muted: {publication.is_muted}")
             
-            # Attach audio track for playback
+            # Set up custom audio playback through ALSA
             try:
                 if isinstance(track, rtc.RemoteAudioTrack):
-                    audio_element = track.attach()
-                    print(f"✅ Audio track attached - should be playing now")
-                    print(f"   Audio element type: {type(audio_element)}")
+                    print(f"   Setting up custom ALSA audio playback...")
                     
-                    # Note: Audio should play automatically when attached
-                    print(f"   🔊 Audio playback should be active")
+                    # Try default attachment first (simpler and should work)
+                    try:
+                        audio_element = track.attach()
+                        print(f"✅ Audio track attached (default method)")
+                        print(f"   🔊 Audio should play through default output")
+                    except Exception as e:
+                        print(f"⚠️  Default attachment failed: {e}")
+                        print(f"   Trying custom ALSA sink...")
+                        
+                        # Fallback to custom ALSA sink
+                        # Try stereo 48kHz first (common for LiveKit), then mono 24kHz
+                        if audio_sink.start(sample_rate=48000, channels=2):
+                            print(f"✅ ALSA audio sink ready (stereo, 48kHz)")
+                            print(f"   🔊 Audio sink configured for hw:{card_index},0")
+                        elif audio_sink.start(sample_rate=24000, channels=1):
+                            print(f"✅ ALSA audio sink ready (mono, 24kHz)")
+                            print(f"   🔊 Audio sink configured for hw:{card_index},0")
+                        else:
+                            print(f"❌ Could not start ALSA audio sink")
+                            print(f"   Audio may still work through default attachment")
                 else:
                     print(f"⚠️  Track is not a RemoteAudioTrack: {type(track)}")
             except Exception as e:
-                print(f"⚠️  Warning: Could not attach audio track: {e}")
+                print(f"⚠️  Warning: Could not set up audio playback: {e}")
                 import traceback
                 traceback.print_exc()
-                print("   Audio may still play through default output")
     
     @room.on("data_received")
     def on_data_received(data: rtc.DataPacket, participant: rtc.RemoteParticipant, kind: rtc.DataPacketKind):
@@ -184,6 +271,8 @@ async def main():
         import traceback
         traceback.print_exc()
     finally:
+        # Stop audio sink
+        audio_sink.stop()
         await room.disconnect()
         print("👋 Goodbye!")
 
