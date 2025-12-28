@@ -39,29 +39,84 @@ else
 fi
 
 # Install Node.js and npm (needed for LiveKit CLI)
+# Use NVM approach similar to whisplay project
 echo ""
 echo "📦 Checking Node.js installation..."
-if command_exists node; then
-    NODE_VERSION=$(node -v)
-    echo "✅ Node.js is installed: $NODE_VERSION"
-else
-    echo "📦 Installing Node.js..."
-    # Use NodeSource repository for latest Node.js
-    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+
+# Source bashrc to load nvm if it exists
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+NVM_VERSION="0.39.3"
+NVM_URL="https://cdn.pisugar.com/PiSugar-wificonfig/script/nvm/v$NVM_VERSION.tar.gz"
+
+# Function to install nvm and Node.js
+install_node_nvm() {
+    echo "Installing Node.js 20 using nvm..."
     
-    if command_exists node; then
-        echo "✅ Node.js installed: $(node -v)"
+    # Install nvm if it's not already installed
+    if [ ! -d "$HOME/.nvm" ]; then
+        echo "Installing nvm..."
+        TEMP_DIR=$(mktemp -d)
+        curl -o $TEMP_DIR/nvm-$NVM_VERSION.tar.gz -L $NVM_URL
+        tar -xzf $TEMP_DIR/nvm-$NVM_VERSION.tar.gz -C $TEMP_DIR
+        mv $TEMP_DIR/nvm-$NVM_VERSION $HOME/.nvm
+        rm -rf $TEMP_DIR
+
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+        # check if nvm is in the bash profile
+        if ! grep -q "nvm" $HOME/.bashrc; then
+            echo "export NVM_DIR=\"$HOME/.nvm\"" >> $HOME/.bashrc
+            echo "[ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\"" >> $HOME/.bashrc
+            echo "[ -s \"\$NVM_DIR/bash_completion\" ] && \. \"\$NVM_DIR/bash_completion\"" >> $HOME/.bashrc
+        fi
     else
-        echo "❌ Failed to install Node.js"
+        echo "✅ nvm is already installed."
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    fi
+
+    # Install and use Node.js 20
+    echo "Installing/using Node.js 20..."
+    nvm install 20
+    nvm use 20
+    nvm alias default 20
+
+    # Verify installation
+    if command_exists node && [[ "$(node -v)" =~ ^v20 ]]; then
+        echo "✅ Node.js 20 installed successfully: $(node -v)"
+    else
+        echo "❌ Failed to install Node.js 20."
         exit 1
     fi
+}
+
+# Check if Node.js is installed and is version 20
+if command_exists node; then
+    NODE_VERSION=$(node -v)
+    if [[ "$NODE_VERSION" =~ ^v20 ]]; then
+        echo "✅ Node.js 20 is already installed: $NODE_VERSION"
+    else
+        echo "Different version of Node.js detected: $NODE_VERSION"
+        install_node_nvm
+    fi
+else
+    echo "Node.js is not installed."
+    install_node_nvm
 fi
 
-# Check if npm is installed
+# Verify npm is available
 if ! command_exists npm; then
-    echo "❌ npm is not installed"
+    echo "❌ npm is not available. This should not happen if Node.js is installed via nvm."
+    echo "   Try running: source ~/.bashrc"
     exit 1
+else
+    echo "✅ npm is available: $(npm -v)"
 fi
 
 # Install LiveKit CLI globally
@@ -71,13 +126,17 @@ if command_exists livekit-server; then
     echo "✅ LiveKit CLI is already installed"
 else
     echo "Installing livekit-cli..."
-    sudo npm install -g livekit-cli
+    # Use npm from nvm (no sudo needed for user installs with nvm)
+    npm install -g livekit-cli
     
     if command_exists livekit-server; then
         echo "✅ LiveKit CLI installed successfully"
     else
         echo "⚠️  Warning: LiveKit CLI installation may have failed"
-        echo "   You can install it manually with: sudo npm install -g livekit-cli"
+        echo "   The command may not be in PATH. Try:"
+        echo "   1. source ~/.bashrc"
+        echo "   2. Or run: npm install -g livekit-cli"
+        echo "   3. Then check: ~/.nvm/versions/node/v20.*/bin/livekit-server"
     fi
 fi
 
