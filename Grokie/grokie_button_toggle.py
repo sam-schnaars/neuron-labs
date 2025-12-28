@@ -68,17 +68,40 @@ def start_grok_connection():
     print("Starting GROK voice connection...")
     try:
         # Start the client script
+        # Use subprocess.PIPE for stderr so we can capture errors
+        # But let stdout go to terminal so we can see real-time output
         grok_process = subprocess.Popen(
             [sys.executable, str(CLIENT_SCRIPT)],
             cwd=str(SCRIPT_DIR),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=None,  # Let stdout go to terminal
+            stderr=subprocess.PIPE,  # Capture stderr for error reporting
             preexec_fn=os.setsid  # Create new process group
         )
         is_connected = True
-        print("✅ GROK connection started!")
+        print("✅ GROK connection started! (PID: {})".format(grok_process.pid))
+        print("   Watch the output above for connection status and errors.")
+        
+        # Give it a moment to start, then check if it's still alive
+        time.sleep(0.5)
+        if grok_process.poll() is not None:
+            # Process died immediately
+            exit_code = grok_process.returncode
+            print(f"❌ GROK connection failed immediately (exit code: {exit_code})")
+            if grok_process.stderr:
+                try:
+                    stderr_output = grok_process.stderr.read().decode('utf-8', errors='ignore')
+                    if stderr_output:
+                        print("\n❌ Error output:")
+                        print(stderr_output)
+                except:
+                    pass
+            is_connected = False
+            grok_process = None
+            return
     except Exception as e:
         print(f"❌ Error starting GROK connection: {e}")
+        import traceback
+        traceback.print_exc()
         is_connected = False
         grok_process = None
 
@@ -213,9 +236,24 @@ def main():
             
             # Check if process is still running
             if grok_process and grok_process.poll() is not None:
-                print("\n⚠️  GROK connection process ended unexpectedly")
+                exit_code = grok_process.returncode
+                print(f"\n⚠️  GROK connection process ended unexpectedly (exit code: {exit_code})")
+                
+                # Try to read stderr to show the error
+                if grok_process.stderr:
+                    try:
+                        stderr_output = grok_process.stderr.read().decode('utf-8', errors='ignore')
+                        if stderr_output:
+                            print("\n❌ Error output from GROK client:")
+                            print("=" * 50)
+                            print(stderr_output)
+                            print("=" * 50)
+                    except Exception as e:
+                        print(f"   (Could not read error output: {e})")
+                
                 grok_process = None
                 is_connected = False
+                print("\n💡 You can press the button again to retry the connection.")
                 
     except KeyboardInterrupt:
         print("\n\n🛑 Shutting down...")
