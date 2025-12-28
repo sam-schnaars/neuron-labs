@@ -57,7 +57,6 @@ async def request_handler(req):
         )
     
     print(f"\n🎤 New voice session started in room: {req.room.name}")
-    print(f"   Room SID: {req.room.sid}")
     
     # Initialize the session with Grok realtime model
     # You can customize the voice by passing voice parameter:

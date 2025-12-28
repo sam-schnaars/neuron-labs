@@ -2,5 +2,6 @@ livekit
 python-dotenv
 pyaudio
 RPi.GPIO
+numpy
 
 

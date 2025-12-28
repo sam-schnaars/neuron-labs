@@ -8,6 +8,8 @@ import asyncio
 import os
 import sys
 import subprocess
+import threading
+import queue
 from dotenv import load_dotenv
 from livekit import rtc, api
 
@@ -69,6 +71,106 @@ def setup_audio_output():
         return "1"
 
 
+class ALSAAudioPlayer:
+    """Plays audio frames through ALSA using aplay."""
+    def __init__(self, sound_card_index="1", sample_rate=48000, channels=2):
+        self.sound_card_index = sound_card_index
+        self.sample_rate = sample_rate
+        self.channels = channels
+        self.process = None
+        self.running = False
+        self.audio_queue = queue.Queue()
+        self.worker_thread = None
+        
+    def start(self):
+        """Start the audio player."""
+        if self.running:
+            return
+            
+        try:
+            # Start aplay process
+            cmd = [
+                "aplay",
+                "-f", "S16_LE",
+                "-c", str(self.channels),
+                "-r", str(self.sample_rate),
+                "-D", f"hw:{self.sound_card_index},0",
+                "-"  # Read from stdin
+            ]
+            self.process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE
+            )
+            self.running = True
+            
+            # Start worker thread to write audio data
+            self.worker_thread = threading.Thread(target=self._audio_worker, daemon=True)
+            self.worker_thread.start()
+            
+            print(f"✅ ALSA audio player started ({self.channels}ch, {self.sample_rate}Hz)")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to start ALSA audio player: {e}")
+            return False
+    
+    def _audio_worker(self):
+        """Worker thread that writes audio data to aplay."""
+        while self.running:
+            try:
+                audio_data = self.audio_queue.get(timeout=0.1)
+                if self.process and self.process.stdin:
+                    self.process.stdin.write(audio_data)
+                    self.process.stdin.flush()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                if self.running:
+                    print(f"⚠️  Audio write error: {e}")
+                break
+    
+    def write_frame(self, audio_frame):
+        """Write an audio frame to the player."""
+        if not self.running:
+            return
+            
+        try:
+            # Convert AudioFrame to bytes
+            # AudioFrame has samples property that's a list of int16 values
+            if hasattr(audio_frame, 'samples'):
+                import numpy as np
+                samples = np.array(audio_frame.samples, dtype=np.int16)
+                audio_data = samples.tobytes()
+                self.audio_queue.put(audio_data)
+            elif hasattr(audio_frame, 'data'):
+                self.audio_queue.put(audio_frame.data)
+            else:
+                # Try to get raw bytes
+                audio_data = bytes(audio_frame)
+                self.audio_queue.put(audio_data)
+        except Exception as e:
+            print(f"⚠️  Error processing audio frame: {e}")
+    
+    def stop(self):
+        """Stop the audio player."""
+        self.running = False
+        if self.process:
+            try:
+                if self.process.stdin:
+                    self.process.stdin.close()
+                self.process.terminate()
+                self.process.wait(timeout=2)
+            except:
+                try:
+                    self.process.kill()
+                except:
+                    pass
+            self.process = None
+        if self.worker_thread:
+            self.worker_thread.join(timeout=1)
+
+
 async def main():
     """Main function to connect and handle voice interaction."""
     print("🎤 GROK Voice Agent - Raspberry Pi Client")
@@ -83,6 +185,9 @@ async def main():
     # Set ALSA environment variables
     os.environ['ALSA_CARD'] = card_index
     os.environ['ALSA_PCM_DEVICE'] = "0"
+    
+    # Create audio player for ALSA playback
+    audio_player = ALSAAudioPlayer(sound_card_index=card_index, sample_rate=48000, channels=2)
     
     # Generate access token
     print("\nGenerating access token...")
@@ -113,22 +218,65 @@ async def main():
         publication: rtc.TrackPublication,
         participant: rtc.RemoteParticipant,
     ):
-        # Handle audio tracks (like web client does)
+        # Handle audio tracks - Python SDK doesn't have attach(), need to handle frames
         if track.kind == rtc.TrackKind.KIND_AUDIO and isinstance(track, rtc.RemoteAudioTrack):
             print(f"\n🔊 Audio track received from {participant.identity}")
             print(f"   Track: {track.name}")
             
-            # Simple approach: just attach the track (like web client)
-            # The Python SDK should handle playback automatically
-            try:
-                audio_element = track.attach()
-                print(f"✅ Audio track attached")
-                print(f"   🔊 Audio should play automatically")
-                print(f"   Audio element type: {type(audio_element)}")
-            except Exception as e:
-                print(f"❌ Failed to attach audio track: {e}")
-                import traceback
-                traceback.print_exc()
+            # Start ALSA audio player
+            if not audio_player.running:
+                if audio_player.start():
+                    print(f"✅ ALSA audio player ready")
+                else:
+                    print(f"❌ Failed to start audio player")
+                    return
+            
+            # Set up frame handler to capture and play audio
+            # The Python SDK uses a different API than the browser SDK
+            print(f"   Checking available track methods...")
+            track_methods = [m for m in dir(track) if not m.startswith('_') and 'frame' in m.lower()]
+            print(f"   Frame-related methods: {track_methods}")
+            
+            # Try to set up frame handling
+            frame_handler_set = False
+            
+            # Method 1: Check if track has add_sink or similar
+            if hasattr(track, 'add_sink'):
+                try:
+                    def audio_sink(frame: rtc.AudioFrame):
+                        audio_player.write_frame(frame)
+                    track.add_sink(audio_sink)
+                    frame_handler_set = True
+                    print(f"✅ Audio sink added via add_sink()")
+                except Exception as e:
+                    print(f"   add_sink failed: {e}")
+            
+            # Method 2: Try frame_received event
+            if not frame_handler_set:
+                try:
+                    @track.on("frame_received")
+                    def on_audio_frame(frame: rtc.AudioFrame):
+                        audio_player.write_frame(frame)
+                    frame_handler_set = True
+                    print(f"✅ Frame handler registered (frame_received event)")
+                except (AttributeError, TypeError) as e:
+                    print(f"   frame_received event not available: {e}")
+            
+            # Method 3: Try accessing stream directly
+            if not frame_handler_set:
+                if hasattr(track, 'stream'):
+                    print(f"   Track has stream attribute: {type(track.stream)}")
+                if hasattr(track, 'media_stream_track'):
+                    print(f"   Track has media_stream_track: {type(track.media_stream_track)}")
+            
+            if frame_handler_set:
+                print(f"   🔊 Audio will play through ALSA when frames arrive")
+            else:
+                print(f"   ⚠️  Could not set up frame handler")
+                print(f"   💡 Audio playback may not work - checking track API...")
+                # Print all public methods for debugging
+                all_methods = [m for m in dir(track) if not m.startswith('_')]
+                print(f"   Available methods: {', '.join(all_methods[:10])}...")
     
     @room.on("data_received")
     def on_data_received(data: rtc.DataPacket, participant: rtc.RemoteParticipant, kind: rtc.DataPacketKind):
@@ -189,6 +337,7 @@ async def main():
         import traceback
         traceback.print_exc()
     finally:
+        audio_player.stop()
         await room.disconnect()
         print("👋 Goodbye!")
 
