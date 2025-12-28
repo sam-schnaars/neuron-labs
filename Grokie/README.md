@@ -122,6 +122,64 @@ You can customize the voice agent by modifying the `RealtimeModel` initializatio
 - **Voice selection**: Uncomment and set the `voice` parameter
 - **Turn detection**: Add `turn_detection` configuration for better conversation flow
 
+## Raspberry Pi Setup (Button Toggle)
+
+For Raspberry Pi with GPIO button control (e.g., Whisplay HAT):
+
+### Installation
+
+1. **Install Python dependencies:**
+   ```bash
+   # Option A: With virtual environment (recommended for isolation)
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   pip install -r raspberry-pi-client/requirements.txt
+   pip install RPi.GPIO
+   
+   # Option B: System packages (matches whisplay approach)
+   pip install -r requirements.txt --break-system-packages
+   pip install -r raspberry-pi-client/requirements.txt --break-system-packages
+   pip install RPi.GPIO --break-system-packages
+   ```
+
+2. **Set up your `.env` file:**
+   ```bash
+   # Required
+   XAI_API_KEY=your_actual_api_key_here
+   
+   # Optional - LiveKit server settings (defaults shown)
+   LIVEKIT_URL=ws://localhost:7880
+   LIVEKIT_API_KEY=devkey
+   LIVEKIT_API_SECRET=secret
+   
+   # Optional - Auto-start GROK agent server (set to 'true' to enable)
+   SERVE_GROK_AGENT=false
+   ```
+
+3. **Set up LiveKit server:**
+   - Install LiveKit CLI: `npm install -g livekit-cli`
+   - Start server: `livekit-server --dev` (in a separate terminal, or set up as a service)
+   - Or use LiveKit Cloud and update `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `.env`
+
+### Usage
+
+**Run with button toggle:**
+```bash
+./run_grokie.sh
+```
+
+- Press the button once to start GROK connection
+- Press again to stop GROK connection
+- Press Ctrl+C to exit
+
+**Configuration options:**
+
+- **Auto-start server**: Set `SERVE_GROK_AGENT=true` in `.env` to automatically start the GROK agent server when you run `run_grokie.sh`
+- **Manual server**: Leave `SERVE_GROK_AGENT=false` (or omit it) and run `python3 grok_voice_agent.py` separately
+
+**Note:** The script uses GPIO pin 11 (same as whisplay). Make sure only one script uses the GPIO at a time.
+
 ## Documentation
 
 For more information, see the [LiveKit xAI plugin documentation](https://docs.livekit.io/agents/models/realtime/plugins/xai/).
