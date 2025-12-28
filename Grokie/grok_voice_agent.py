@@ -56,6 +56,8 @@ async def request_handler(req):
             "Please set it in your .env file or environment."
         )
     
+    print(f"\n🎤 New voice session started in room: {req.room.name}")
+    
     # Initialize the session with Grok realtime model
     # You can customize the voice by passing voice parameter:
     # Available voices: 'Ara', 'Rex', 'Sal', 'Eve', 'Leo'
@@ -65,10 +67,22 @@ async def request_handler(req):
         ),
     )
     
+    # Set up event handlers to log agent responses
+    @session.on("agent_speech_committed")
+    def on_agent_speech_committed(event):
+        """Log when agent finishes speaking."""
+        if hasattr(event, 'text') and event.text:
+            print(f"🤖 Agent said: {event.text}")
+        elif hasattr(event, 'message') and event.message:
+            print(f"🤖 Agent message: {event.message}")
+    
     # Start the session with the GrokAssistant agent
     await session.start(room=req.room, agent=GrokAssistant())
     
+    print("✅ Agent session started")
+    
     # Generate an initial greeting
+    print("💬 Generating initial greeting...")
     await session.generate_reply(
         instructions="Greet the user as Grokie with a funny, quick-witted one-liner. Keep it to 1-2 sentences."
     )
