@@ -185,34 +185,78 @@ async def main():
             print(f"   Track SID: {track.sid}")
             print(f"   Track name: {track.name}")
             print(f"   Muted: {publication.is_muted}")
+            print(f"   Track type: {type(track)}")
+            print(f"   Is RemoteAudioTrack: {isinstance(track, rtc.RemoteAudioTrack)}")
             
             # Set up custom audio playback through ALSA
             try:
+                print(f"   Entering audio setup block...")
                 if isinstance(track, rtc.RemoteAudioTrack):
-                    print(f"   Setting up custom ALSA audio playback...")
+                    print(f"   ✅ Track is RemoteAudioTrack, setting up playback...")
+                    print(f"   Setting up audio playback...")
+                    print(f"   Track type: {type(track)}")
                     
-                    # Try default attachment first (simpler and should work)
+                    # Try to set default PulseAudio sink first (if PulseAudio is available)
                     try:
+                        result = subprocess.run(
+                            ["pactl", "list", "short", "sinks"],
+                            capture_output=True,
+                            text=True,
+                            timeout=2
+                        )
+                        if result.returncode == 0 and result.stdout:
+                            # Try to set default sink to ALSA device
+                            sink_name = f"alsa_output.hw_{card_index}_0"
+                            subprocess.run(
+                                ["pactl", "set-default-sink", sink_name],
+                                capture_output=True,
+                                timeout=2
+                            )
+                            print(f"   💡 Tried to set PulseAudio default sink")
+                    except:
+                        pass  # PulseAudio might not be available
+                    
+                    # Try default attachment
+                    audio_attached = False
+                    try:
+                        print(f"   Attempting track.attach()...")
                         audio_element = track.attach()
                         print(f"✅ Audio track attached (default method)")
+                        print(f"   Audio element type: {type(audio_element)}")
                         print(f"   🔊 Audio should play through default output")
+                        audio_attached = True
                     except Exception as e:
                         print(f"⚠️  Default attachment failed: {e}")
-                        print(f"   Trying custom ALSA sink...")
-                        
-                        # Fallback to custom ALSA sink
-                        # Try stereo 48kHz first (common for LiveKit), then mono 24kHz
-                        if audio_sink.start(sample_rate=48000, channels=2):
-                            print(f"✅ ALSA audio sink ready (stereo, 48kHz)")
-                            print(f"   🔊 Audio sink configured for hw:{card_index},0")
-                        elif audio_sink.start(sample_rate=24000, channels=1):
-                            print(f"✅ ALSA audio sink ready (mono, 24kHz)")
-                            print(f"   🔊 Audio sink configured for hw:{card_index},0")
-                        else:
-                            print(f"❌ Could not start ALSA audio sink")
-                            print(f"   Audio may still work through default attachment")
+                        import traceback
+                        traceback.print_exc()
+                    
+                    # Also set up ALSA sink as backup
+                    print(f"   Setting up ALSA audio sink as backup...")
+                    alsa_started = False
+                    # Try stereo 48kHz first (common for LiveKit), then mono 24kHz
+                    if audio_sink.start(sample_rate=48000, channels=2):
+                        print(f"✅ ALSA audio sink started (stereo, 48kHz)")
+                        print(f"   🔊 ALSA sink ready at hw:{card_index},0")
+                        alsa_started = True
+                    elif audio_sink.start(sample_rate=24000, channels=1):
+                        print(f"✅ ALSA audio sink started (mono, 24kHz)")
+                        print(f"   🔊 ALSA sink ready at hw:{card_index},0")
+                        alsa_started = True
+                    else:
+                        print(f"⚠️  Could not start ALSA audio sink")
+                    
+                    if not audio_attached and not alsa_started:
+                        print(f"❌ No audio playback method available!")
+                        print(f"   Check: aplay -l, pactl list sinks")
+                    elif audio_attached:
+                        print(f"   💡 Default attachment is active - audio should work")
+                        print(f"   💡 If no audio, check PulseAudio routing")
+                    else:
+                        print(f"   ⚠️  ALSA sink ready but needs audio frame capture")
+                        print(f"   💡 LiveKit Python SDK may not expose frame handlers")
                 else:
                     print(f"⚠️  Track is not a RemoteAudioTrack: {type(track)}")
+                    print(f"   Actual type: {type(track)}")
             except Exception as e:
                 print(f"⚠️  Warning: Could not set up audio playback: {e}")
                 import traceback
