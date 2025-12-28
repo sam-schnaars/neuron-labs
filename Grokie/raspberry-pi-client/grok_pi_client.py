@@ -254,6 +254,8 @@ async def main():
         publication: rtc.TrackPublication,
         participant: rtc.RemoteParticipant,
     ):
+        nonlocal audio_player_started  # Declare as nonlocal since we may assign to it
+        
         # Handle audio tracks - Use MediaDevices player (proper Python SDK way)
         if track.kind == rtc.TrackKind.KIND_AUDIO and isinstance(track, rtc.RemoteAudioTrack):
             print(f"\n🔊 Audio track received from {participant.identity}")
