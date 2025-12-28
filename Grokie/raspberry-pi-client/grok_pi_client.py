@@ -231,8 +231,25 @@ async def main():
     # Track if audio player has been started
     audio_player_started = False
     
+    async def start_audio_player_if_needed():
+        """Async helper to start audio player."""
+        nonlocal audio_player_started
+        if not audio_player_started and audio_player is not None:
+            try:
+                if hasattr(audio_player, 'start'):
+                    if asyncio.iscoroutinefunction(audio_player.start):
+                        await audio_player.start()
+                    else:
+                        audio_player.start()
+                audio_player_started = True
+                print(f"✅ Audio playback started")
+            except Exception as e:
+                print(f"⚠️  Error starting player: {e}")
+                import traceback
+                traceback.print_exc()
+    
     @room.on("track_subscribed")
-    async def on_track_subscribed(
+    def on_track_subscribed(
         track: rtc.Track,
         publication: rtc.TrackPublication,
         participant: rtc.RemoteParticipant,
@@ -243,26 +260,36 @@ async def main():
             print(f"   Track: {track.name}")
             
             # Use MediaDevices player if available (preferred method)
-            nonlocal audio_player_started
             if audio_player is not None:
                 try:
                     audio_player.add_track(track)
                     print(f"✅ Audio track added to MediaDevices player")
                     
-                    # Start playback if not already started
+                    # Start playback if not already started (use create_task for async)
                     if not audio_player_started:
                         try:
-                            if hasattr(audio_player, 'start'):
-                                if asyncio.iscoroutinefunction(audio_player.start):
-                                    await audio_player.start()
+                            # Get the running event loop
+                            loop = asyncio.get_running_loop()
+                            loop.create_task(start_audio_player_if_needed())
+                        except RuntimeError:
+                            # Fallback: try to get any event loop
+                            try:
+                                loop = asyncio.get_event_loop()
+                                if loop.is_running():
+                                    loop.create_task(start_audio_player_if_needed())
                                 else:
-                                    audio_player.start()
-                            audio_player_started = True
-                            print(f"✅ Audio playback started")
-                        except Exception as e:
-                            print(f"⚠️  Error starting player: {e}")
-                            import traceback
-                            traceback.print_exc()
+                                    # If loop exists but not running, schedule it
+                                    asyncio.run(start_audio_player_if_needed())
+                            except Exception as e:
+                                print(f"⚠️  Could not start audio player asynchronously: {e}")
+                                # Try synchronous start as fallback
+                                try:
+                                    if hasattr(audio_player, 'start') and not asyncio.iscoroutinefunction(audio_player.start):
+                                        audio_player.start()
+                                        audio_player_started = True
+                                        print(f"✅ Audio playback started (synchronous)")
+                                except Exception as e2:
+                                    print(f"⚠️  Synchronous start also failed: {e2}")
                     else:
                         print(f"✅ Audio playback already active")
                     print(f"   🔊 Audio should play through default output device")
