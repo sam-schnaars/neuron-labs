@@ -186,8 +186,24 @@ async def main():
     os.environ['ALSA_CARD'] = card_index
     os.environ['ALSA_PCM_DEVICE'] = "0"
     
-    # Create audio player for ALSA playback
-    audio_player = ALSAAudioPlayer(sound_card_index=card_index, sample_rate=48000, channels=2)
+    # Create MediaDevices for audio output (the proper way in Python SDK)
+    devices = rtc.MediaDevices()
+    
+    # Try to open audio output device
+    audio_player = None
+    try:
+        print("Setting up audio output device...")
+        audio_player = devices.open_output()
+        print("✅ Audio output device opened")
+    except Exception as e:
+        print(f"⚠️  Could not open audio output device: {e}")
+        print("   Will try to use ALSA directly as fallback")
+        audio_player = None
+    
+    # Fallback: Create ALSA audio player if MediaDevices failed
+    alsa_player = None
+    if audio_player is None:
+        alsa_player = ALSAAudioPlayer(sound_card_index=card_index, sample_rate=48000, channels=2)
     
     # Generate access token
     print("\nGenerating access token...")
@@ -212,71 +228,55 @@ async def main():
         print(f"👤 Agent connected: {participant.identity}")
         print(f"   Participant SID: {participant.sid}")
     
+    # Track if audio player has been started
+    audio_player_started = False
+    
     @room.on("track_subscribed")
-    def on_track_subscribed(
+    async def on_track_subscribed(
         track: rtc.Track,
         publication: rtc.TrackPublication,
         participant: rtc.RemoteParticipant,
     ):
-        # Handle audio tracks - Python SDK doesn't have attach(), need to handle frames
+        # Handle audio tracks - Use MediaDevices player (proper Python SDK way)
         if track.kind == rtc.TrackKind.KIND_AUDIO and isinstance(track, rtc.RemoteAudioTrack):
             print(f"\n🔊 Audio track received from {participant.identity}")
             print(f"   Track: {track.name}")
             
-            # Start ALSA audio player
-            if not audio_player.running:
-                if audio_player.start():
-                    print(f"✅ ALSA audio player ready")
-                else:
-                    print(f"❌ Failed to start audio player")
-                    return
-            
-            # Set up frame handler to capture and play audio
-            # The Python SDK uses a different API than the browser SDK
-            print(f"   Checking available track methods...")
-            track_methods = [m for m in dir(track) if not m.startswith('_') and 'frame' in m.lower()]
-            print(f"   Frame-related methods: {track_methods}")
-            
-            # Try to set up frame handling
-            frame_handler_set = False
-            
-            # Method 1: Check if track has add_sink or similar
-            if hasattr(track, 'add_sink'):
+            # Use MediaDevices player if available (preferred method)
+            nonlocal audio_player_started
+            if audio_player is not None:
                 try:
-                    def audio_sink(frame: rtc.AudioFrame):
-                        audio_player.write_frame(frame)
-                    track.add_sink(audio_sink)
-                    frame_handler_set = True
-                    print(f"✅ Audio sink added via add_sink()")
+                    audio_player.add_track(track)
+                    print(f"✅ Audio track added to MediaDevices player")
+                    
+                    # Start playback if not already started
+                    if not audio_player_started:
+                        try:
+                            if hasattr(audio_player, 'start'):
+                                if asyncio.iscoroutinefunction(audio_player.start):
+                                    await audio_player.start()
+                                else:
+                                    audio_player.start()
+                            audio_player_started = True
+                            print(f"✅ Audio playback started")
+                        except Exception as e:
+                            print(f"⚠️  Error starting player: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    else:
+                        print(f"✅ Audio playback already active")
+                    print(f"   🔊 Audio should play through default output device")
                 except Exception as e:
-                    print(f"   add_sink failed: {e}")
-            
-            # Method 2: Try frame_received event
-            if not frame_handler_set:
-                try:
-                    @track.on("frame_received")
-                    def on_audio_frame(frame: rtc.AudioFrame):
-                        audio_player.write_frame(frame)
-                    frame_handler_set = True
-                    print(f"✅ Frame handler registered (frame_received event)")
-                except (AttributeError, TypeError) as e:
-                    print(f"   frame_received event not available: {e}")
-            
-            # Method 3: Try accessing stream directly
-            if not frame_handler_set:
-                if hasattr(track, 'stream'):
-                    print(f"   Track has stream attribute: {type(track.stream)}")
-                if hasattr(track, 'media_stream_track'):
-                    print(f"   Track has media_stream_track: {type(track.media_stream_track)}")
-            
-            if frame_handler_set:
-                print(f"   🔊 Audio will play through ALSA when frames arrive")
+                    print(f"⚠️  Error adding track to player: {e}")
+                    import traceback
+                    traceback.print_exc()
+            elif alsa_player is not None:
+                # Fallback to ALSA player (won't work without frame access)
+                print(f"   ⚠️  MediaDevices not available, using ALSA fallback")
+                print(f"   ⚠️  ALSA player needs frame access which may not be available")
+                print(f"   💡 Install sounddevice: pip install sounddevice")
             else:
-                print(f"   ⚠️  Could not set up frame handler")
-                print(f"   💡 Audio playback may not work - checking track API...")
-                # Print all public methods for debugging
-                all_methods = [m for m in dir(track) if not m.startswith('_')]
-                print(f"   Available methods: {', '.join(all_methods[:10])}...")
+                print(f"❌ No audio playback method available")
     
     @room.on("data_received")
     def on_data_received(data: rtc.DataPacket, participant: rtc.RemoteParticipant, kind: rtc.DataPacketKind):
@@ -337,7 +337,14 @@ async def main():
         import traceback
         traceback.print_exc()
     finally:
-        audio_player.stop()
+        # Clean up audio players
+        if alsa_player:
+            alsa_player.stop()
+        if audio_player:
+            try:
+                await audio_player.aclose()
+            except:
+                pass
         await room.disconnect()
         print("👋 Goodbye!")
 
