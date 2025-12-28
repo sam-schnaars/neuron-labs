@@ -128,7 +128,19 @@ For Raspberry Pi with GPIO button control (e.g., Whisplay HAT):
 
 ### Installation
 
-1. **Install Python dependencies:**
+1. **Install all dependencies:**
+   ```bash
+   bash install_dependencies.sh
+   ```
+   
+   This will install:
+   - System packages (Python, audio libraries, etc.)
+   - Node.js and npm (for LiveKit CLI)
+   - LiveKit CLI
+   - Python dependencies (with optional virtual environment)
+   - RPi.GPIO for button control
+
+   **Or install manually:**
    ```bash
    # Option A: With virtual environment (recommended for isolation)
    python3 -m venv venv
@@ -158,7 +170,7 @@ For Raspberry Pi with GPIO button control (e.g., Whisplay HAT):
    ```
 
 3. **Set up LiveKit server:**
-   - Install LiveKit CLI: `npm install -g livekit-cli`
+   - LiveKit CLI should already be installed by `install_dependencies.sh`
    - Start server: `livekit-server --dev` (in a separate terminal, or set up as a service)
    - Or use LiveKit Cloud and update `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `.env`
 
