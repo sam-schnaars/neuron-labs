@@ -176,17 +176,17 @@ class RenderThread(threading.Thread):
         ascent_status, _ = status_font.getmetrics()
         ascent_emoji, _ = emoji_font.getmetrics()
 
-        top_height = status_font_size + emoji_font_size + 20
+        top_height = status_font_size + 20
 
         # Draw status centered
         status_bbox = status_font.getbbox(current_status)
         status_w = status_bbox[2] - status_bbox[0]
         TextUtils.draw_mixed_text(draw, image, current_status, status_font, (whisplay.CornerHeight, 0))
 
-        # Draw emoji centered
-        emoji_bbox = emoji_font.getbbox(current_emoji)
-        emoji_w = emoji_bbox[2] - emoji_bbox[0]
-        TextUtils.draw_mixed_text(draw, image, current_emoji, emoji_font, ((image_width - emoji_w) // 2, status_font_size + 8))
+        # Draw emoji centered - DISABLED
+        # emoji_bbox = emoji_font.getbbox(current_emoji)
+        # emoji_w = emoji_bbox[2] - emoji_bbox[0]
+        # TextUtils.draw_mixed_text(draw, image, current_emoji, emoji_font, ((image_width - emoji_w) // 2, status_font_size + 8))
         
         # Draw battery icon
         if battery_level is not None:

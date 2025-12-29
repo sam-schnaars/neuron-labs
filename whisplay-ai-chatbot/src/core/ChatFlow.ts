@@ -19,7 +19,6 @@ import {
   chatWithLLMStream,
   ttsProcessor,
 } from "../cloud-api/server";
-import { extractEmojis } from "../utils";
 import { StreamResponser } from "./StreamResponsor";
 import { cameraDir, recordingsDir } from "../utils/dir";
 import { getLatestDisplayImg, setLatestCapturedImg } from "../utils/image";
@@ -46,7 +45,6 @@ class ChatFlow {
         const fullText = sentences.join(" ");
         display({
           status: "answering",
-          emoji: extractEmojis(fullText) || "😊",
           text: fullText,
           RGB: "#0000ff",
           scroll_speed: 3,
@@ -84,7 +82,6 @@ class ChatFlow {
       const displayText = this.thinkingSentences.join(" ");
       display({
         status: "Thinking",
-        emoji: "🤔",
         text: displayText,
         RGB: "#ff6800", // yellow
         scroll_speed: 6,
@@ -119,7 +116,6 @@ class ChatFlow {
         }
         display({
           status: "resting",
-          emoji: "🇺🇸",
           RGB: "#000055",
           ...(getCurrentStatus().text === "Listening..."
             ? {
@@ -156,7 +152,6 @@ class ChatFlow {
           });
         display({
           status: "listening",
-          emoji: "😐",
           RGB: "#00ff00",
           text: "Listening...",
         });
