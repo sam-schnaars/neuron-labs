@@ -135,29 +135,38 @@ async def monitor_rooms():
         # Default to localhost if no protocol
         api_url = "http://localhost:7880"
     
-    # Create LiveKit API client
+    # Create RoomServiceClient for listing rooms
     try:
-        lk_api = api.LiveKitAPI(api_url, livekit_key, livekit_secret)
+        room_service = api.RoomServiceClient(api_url, livekit_key, livekit_secret)
     except Exception as e:
-        print(f"⚠️  Could not create API client: {e}")
+        print(f"⚠️  Could not create room service client: {e}")
         print("   Room monitoring disabled. Agent will only respond to explicit requests.")
         return
     
     while True:
         try:
             # Get list of active rooms
-            rooms = await lk_api.list_rooms()
+            rooms_response = await room_service.list_rooms()
             
-            for room_info in rooms.rooms:
-                room_name = room_info.name
+            # Handle different response formats
+            if hasattr(rooms_response, 'rooms'):
+                rooms_list = rooms_response.rooms
+            elif isinstance(rooms_response, list):
+                rooms_list = rooms_response
+            else:
+                rooms_list = [rooms_response] if rooms_response else []
+            
+            for room_info in rooms_list:
+                room_name = room_info.name if hasattr(room_info, 'name') else str(room_info)
                 
                 # Skip if we already have an active session
                 if room_name in active_sessions:
                     continue
                 
                 # Check if room has participants (clients)
-                if room_info.num_participants > 0:
-                    print(f"📡 Found active room '{room_name}' with {room_info.num_participants} participant(s)")
+                num_participants = room_info.num_participants if hasattr(room_info, 'num_participants') else 0
+                if num_participants > 0:
+                    print(f"📡 Found active room '{room_name}' with {num_participants} participant(s)")
                     
                     # Create a room connection to join
                     room = rtc.Room()
