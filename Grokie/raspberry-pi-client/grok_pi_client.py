@@ -300,10 +300,46 @@ async def main():
                     import traceback
                     traceback.print_exc()
             elif alsa_player is not None:
-                # Fallback to ALSA player (won't work without frame access)
+                # Fallback to ALSA player - start it and subscribe to frames
                 print(f"   ⚠️  MediaDevices not available, using ALSA fallback")
-                print(f"   ⚠️  ALSA player needs frame access which may not be available")
-                print(f"   💡 Install sounddevice: pip install sounddevice")
+                try:
+                    # Start the ALSA player
+                    if not alsa_player.running:
+                        alsa_player.start()
+                        print(f"✅ ALSA audio player started")
+                    
+                    # Subscribe to audio frames from the track
+                    def on_audio_frame(frame: rtc.AudioFrame):
+                        """Callback to handle audio frames from the track."""
+                        try:
+                            alsa_player.write_frame(frame)
+                        except Exception as e:
+                            # Silently handle errors to avoid spam
+                            pass
+                    
+                    # Register frame callback
+                    # LiveKit Python SDK uses "frame" event for RemoteAudioTrack
+                    try:
+                        track.on("frame", on_audio_frame)
+                        print(f"✅ Audio frame subscription set up for ALSA player")
+                        print(f"   🔊 Audio should play through ALSA device")
+                    except AttributeError:
+                        # Try alternative method if "on" doesn't exist
+                        try:
+                            track.add_frame_listener(on_audio_frame)
+                            print(f"✅ Audio frame subscription set up for ALSA player (listener)")
+                            print(f"   🔊 Audio should play through ALSA device")
+                        except AttributeError:
+                            print(f"⚠️  Could not subscribe to audio frames - track doesn't support frame callbacks")
+                            print(f"   Track type: {type(track)}")
+                            print(f"   Available methods: {[m for m in dir(track) if not m.startswith('_')]}")
+                    except Exception as frame_error:
+                        print(f"⚠️  Error subscribing to audio frames: {frame_error}")
+                        print(f"   Audio playback may not work with ALSA fallback")
+                except Exception as e:
+                    print(f"⚠️  Error setting up ALSA player: {e}")
+                    import traceback
+                    traceback.print_exc()
             else:
                 print(f"❌ No audio playback method available")
     
@@ -338,10 +374,10 @@ async def main():
         # Create and publish microphone track (after connection, like web client)
         print("Setting up microphone...")
         try:
-            # Use default microphone
-            source = rtc.AudioSource(24000, 1)  # 24kHz, mono
-            track = rtc.LocalAudioTrack.create_audio_track("microphone", source)
-            await room.local_participant.publish_track(track, rtc.TrackPublishOptions())
+            # Use MediaDevices to capture from default microphone (like web client)
+            # This automatically captures audio from the system microphone
+            microphone_track = await devices.open_input()
+            await room.local_participant.publish_track(microphone_track, rtc.TrackPublishOptions())
             print("✅ Microphone ready!")
         except Exception as e:
             print(f"⚠️  Warning: Could not set up microphone: {e}")
