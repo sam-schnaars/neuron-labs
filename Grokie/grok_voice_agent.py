@@ -8,6 +8,7 @@ import asyncio
 from dotenv import load_dotenv
 from livekit.agents import AgentServer, AgentSession, Agent
 from livekit.plugins import xai
+from livekit import api, rtc
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,6 +35,7 @@ class GrokAssistant(Agent):
 livekit_url = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
 livekit_key = os.getenv("LIVEKIT_API_KEY", "devkey")
 livekit_secret = os.getenv("LIVEKIT_API_SECRET", "secret")
+room_name = os.getenv("LIVEKIT_ROOM", "test-room")
 
 server = AgentServer(
     ws_url=livekit_url,
@@ -41,12 +43,14 @@ server = AgentServer(
     api_secret=livekit_secret,
 )
 
+# Track active sessions to avoid duplicates
+active_sessions = {}
 
-@server.rtc_session()
-async def request_handler(req):
+
+async def start_agent_session(room: rtc.Room):
     """
-    Handle incoming real-time communication session requests.
-    This function is called when a new voice session is initiated.
+    Start an agent session in a room.
+    This is called when a client connects to trigger the agent to join.
     """
     # Check if API key is set
     api_key = os.getenv("XAI_API_KEY")
@@ -56,37 +60,142 @@ async def request_handler(req):
             "Please set it in your .env file or environment."
         )
     
-    print(f"\n🎤 New voice session started in room: {req.room.name}")
+    # Avoid duplicate sessions for the same room
+    if room.name in active_sessions:
+        print(f"⚠️  Agent session already active for room: {room.name}")
+        return
     
-    # Initialize the session with Grok realtime model
-    # You can customize the voice by passing voice parameter:
-    # Available voices: 'Ara', 'Rex', 'Sal', 'Eve', 'Leo'
-    session = AgentSession(
-        llm=xai.realtime.RealtimeModel(
-            # voice='Ara',  # Uncomment to specify a voice
-        ),
-    )
+    print(f"\n🎤 Client connected to room: {room.name}, starting agent session...")
+    active_sessions[room.name] = True
     
-    # Start the session with the GrokAssistant agent
-    await session.start(room=req.room, agent=GrokAssistant())
-    
-    print("✅ Agent session started")
-    print("   💡 Agent is ready to receive audio and respond")
-    
-    # Generate an initial greeting
-    print("💬 Generating initial greeting...")
     try:
-        await session.generate_reply(
-            instructions="Greet the user as Grokie with a funny, quick-witted one-liner. Keep it to 1-2 sentences."
+        # Initialize the session with Grok realtime model
+        # You can customize the voice by passing voice parameter:
+        # Available voices: 'Ara', 'Rex', 'Sal', 'Eve', 'Leo'
+        session = AgentSession(
+            llm=xai.realtime.RealtimeModel(
+                # voice='Ara',  # Uncomment to specify a voice
+            ),
         )
-        print("✅ Initial greeting sent")
+        
+        # Start the session with the GrokAssistant agent
+        await session.start(room=room, agent=GrokAssistant())
+        
+        print("✅ Agent session started")
+        print("   💡 Agent is ready to receive audio and respond")
+        
+        # Generate an initial greeting
+        print("💬 Generating initial greeting...")
+        try:
+            await session.generate_reply(
+                instructions="Greet the user as Grokie with a funny, quick-witted one-liner. Keep it to 1-2 sentences."
+            )
+            print("✅ Initial greeting sent")
+        except Exception as e:
+            print(f"⚠️  Error generating greeting: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Log when user speaks (if available)
+        print("   🎤 Listening for user input...")
+        
+        # Wait for session to end
+        await session.aclose()
+        
     except Exception as e:
-        print(f"⚠️  Error generating greeting: {e}")
+        print(f"❌ Error in agent session: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        # Remove from active sessions when done
+        if room.name in active_sessions:
+            del active_sessions[room.name]
+        print(f"👋 Agent session ended for room: {room.name}")
+
+
+@server.rtc_session()
+async def request_handler(req):
+    """
+    Handle incoming real-time communication session requests.
+    This function is called when a new voice session is initiated.
+    """
+    await start_agent_session(req.room)
+
+
+async def monitor_rooms():
+    """
+    Monitor rooms and auto-join when clients connect.
+    This provides an alternative to requiring explicit agent requests.
+    """
+    print("🔍 Starting room monitor to auto-join when clients connect...")
     
-    # Log when user speaks (if available)
-    print("   🎤 Listening for user input...")
+    # Convert WebSocket URL to HTTP URL for API
+    api_url = livekit_url.replace("ws://", "http://").replace("wss://", "https://")
+    if not api_url.startswith("http"):
+        # Default to localhost if no protocol
+        api_url = "http://localhost:7880"
+    
+    # Create LiveKit API client
+    try:
+        lk_api = api.LiveKitAPI(api_url, livekit_key, livekit_secret)
+    except Exception as e:
+        print(f"⚠️  Could not create API client: {e}")
+        print("   Room monitoring disabled. Agent will only respond to explicit requests.")
+        return
+    
+    while True:
+        try:
+            # Get list of active rooms
+            rooms = await lk_api.list_rooms()
+            
+            for room_info in rooms.rooms:
+                room_name = room_info.name
+                
+                # Skip if we already have an active session
+                if room_name in active_sessions:
+                    continue
+                
+                # Check if room has participants (clients)
+                if room_info.num_participants > 0:
+                    print(f"📡 Found active room '{room_name}' with {room_info.num_participants} participant(s)")
+                    
+                    # Create a room connection to join
+                    room = rtc.Room()
+                    
+                    # Generate token for agent to join
+                    token = api.AccessToken(livekit_key, livekit_secret) \
+                        .with_identity("grokie-agent") \
+                        .with_name("Grokie") \
+                        .with_grants(api.VideoGrants(
+                            room_join=True,
+                            room=room_name,
+                            can_publish=True,
+                            can_subscribe=True,
+                        ))
+                    
+                    try:
+                        # Connect to the room
+                        await room.connect(livekit_url, token.to_jwt())
+                        print(f"✅ Agent connected to room: {room_name}")
+                        
+                        # Start agent session in background
+                        asyncio.create_task(start_agent_session(room))
+                        
+                    except Exception as e:
+                        print(f"⚠️  Error connecting to room {room_name}: {e}")
+                        try:
+                            await room.disconnect()
+                        except:
+                            pass
+            
+            # Check every 2 seconds
+            await asyncio.sleep(2)
+            
+        except Exception as e:
+            print(f"⚠️  Error monitoring rooms: {e}")
+            import traceback
+            traceback.print_exc()
+            await asyncio.sleep(5)
 
 
 async def main():
@@ -113,8 +222,19 @@ async def main():
     print("For local dev: run 'livekit-server --dev' in another terminal")
     print("Server is ready to accept connections...\n")
     
-    # Run the agent server (it's async, so we await it)
-    await server.run(devmode=True)
+    # Start room monitoring in background
+    monitor_task = asyncio.create_task(monitor_rooms())
+    
+    try:
+        # Run the agent server (it's async, so we await it)
+        await server.run(devmode=True)
+    finally:
+        # Cancel monitoring when server stops
+        monitor_task.cancel()
+        try:
+            await monitor_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
