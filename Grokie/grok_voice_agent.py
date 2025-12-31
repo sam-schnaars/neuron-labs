@@ -122,89 +122,53 @@ async def request_handler(req):
     await start_agent_session(req.room)
 
 
-async def monitor_rooms():
+async def auto_join_room(room_name: str):
     """
-    Monitor rooms and auto-join when clients connect.
-    This provides an alternative to requiring explicit agent requests.
+    Automatically join a specific room and start an agent session.
+    This is a simpler approach that connects directly to a known room.
     """
-    print("🔍 Starting room monitor to auto-join when clients connect...")
-    
-    # Convert WebSocket URL to HTTP URL for API
-    api_url = livekit_url.replace("ws://", "http://").replace("wss://", "https://")
-    if not api_url.startswith("http"):
-        # Default to localhost if no protocol
-        api_url = "http://localhost:7880"
-    
-    # Create RoomServiceClient for listing rooms
-    try:
-        room_service = api.RoomServiceClient(api_url, livekit_key, livekit_secret)
-    except Exception as e:
-        print(f"⚠️  Could not create room service client: {e}")
-        print("   Room monitoring disabled. Agent will only respond to explicit requests.")
+    # Skip if we already have an active session for this room
+    if room_name in active_sessions:
+        print(f"⚠️  Agent session already active for room: {room_name}")
         return
     
-    while True:
-        try:
-            # Get list of active rooms
-            rooms_response = await room_service.list_rooms()
-            
-            # Handle different response formats
-            if hasattr(rooms_response, 'rooms'):
-                rooms_list = rooms_response.rooms
-            elif isinstance(rooms_response, list):
-                rooms_list = rooms_response
-            else:
-                rooms_list = [rooms_response] if rooms_response else []
-            
-            for room_info in rooms_list:
-                room_name = room_info.name if hasattr(room_info, 'name') else str(room_info)
-                
-                # Skip if we already have an active session
-                if room_name in active_sessions:
-                    continue
-                
-                # Check if room has participants (clients)
-                num_participants = room_info.num_participants if hasattr(room_info, 'num_participants') else 0
-                if num_participants > 0:
-                    print(f"📡 Found active room '{room_name}' with {num_participants} participant(s)")
-                    
-                    # Create a room connection to join
-                    room = rtc.Room()
-                    
-                    # Generate token for agent to join
-                    token = api.AccessToken(livekit_key, livekit_secret) \
-                        .with_identity("grokie-agent") \
-                        .with_name("Grokie") \
-                        .with_grants(api.VideoGrants(
-                            room_join=True,
-                            room=room_name,
-                            can_publish=True,
-                            can_subscribe=True,
-                        ))
-                    
-                    try:
-                        # Connect to the room
-                        await room.connect(livekit_url, token.to_jwt())
-                        print(f"✅ Agent connected to room: {room_name}")
-                        
-                        # Start agent session in background
-                        asyncio.create_task(start_agent_session(room))
-                        
-                    except Exception as e:
-                        print(f"⚠️  Error connecting to room {room_name}: {e}")
-                        try:
-                            await room.disconnect()
-                        except:
-                            pass
-            
-            # Check every 2 seconds
-            await asyncio.sleep(2)
-            
-        except Exception as e:
-            print(f"⚠️  Error monitoring rooms: {e}")
-            import traceback
-            traceback.print_exc()
-            await asyncio.sleep(5)
+    print(f"🔗 Auto-joining room: {room_name}")
+    
+    try:
+        # Create a room connection
+        room = rtc.Room()
+        
+        # Generate token for agent to join
+        token = api.AccessToken(livekit_key, livekit_secret) \
+            .with_identity("grokie-agent") \
+            .with_name("Grokie") \
+            .with_grants(api.VideoGrants(
+                room_join=True,
+                room=room_name,
+                can_publish=True,
+                can_subscribe=True,
+            ))
+        
+        # Connect to the room
+        await room.connect(livekit_url, token.to_jwt())
+        print(f"✅ Agent connected to room: {room_name}")
+        print(f"   Waiting for clients to join...")
+        
+        # Monitor for participants joining
+        @room.on("participant_connected")
+        def on_participant_connected(participant: rtc.RemoteParticipant):
+            if participant.identity != "grokie-agent":
+                print(f"👤 Client '{participant.identity}' joined room: {room_name}")
+        
+        # Start agent session in background (non-blocking)
+        asyncio.create_task(start_agent_session(room))
+        
+    except Exception as e:
+        print(f"❌ Error auto-joining room {room_name}: {e}")
+        import traceback
+        traceback.print_exc()
+        if room_name in active_sessions:
+            del active_sessions[room_name]
 
 
 async def main():
@@ -223,25 +187,28 @@ async def main():
     livekit_url = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
     livekit_key = os.getenv("LIVEKIT_API_KEY", "devkey")
     livekit_secret = os.getenv("LIVEKIT_API_SECRET", "secret")
+    default_room = os.getenv("LIVEKIT_ROOM", "test-room")
     
     print("Starting GROK Voice Agent Server...")
     print(f"LiveKit URL: {livekit_url}")
     print(f"LiveKit API Key: {livekit_key}")
+    print(f"Default room: {default_room}")
     print("Make sure your LiveKit server is running!")
     print("For local dev: run 'livekit-server --dev' in another terminal")
-    print("Server is ready to accept connections...\n")
+    print("\n💡 The agent will auto-join the room when clients connect.")
+    print("   You can also use the @server.rtc_session() handler for explicit requests.\n")
     
-    # Start room monitoring in background
-    monitor_task = asyncio.create_task(monitor_rooms())
+    # Start auto-join task in background (connects to default room)
+    auto_join_task = asyncio.create_task(auto_join_room(default_room))
     
     try:
         # Run the agent server (it's async, so we await it)
         await server.run(devmode=True)
     finally:
-        # Cancel monitoring when server stops
-        monitor_task.cancel()
+        # Cancel auto-join when server stops
+        auto_join_task.cancel()
         try:
-            await monitor_task
+            await auto_join_task
         except asyncio.CancelledError:
             pass
 
