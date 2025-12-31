@@ -27,8 +27,8 @@ if not DEEPGRAM_API_KEY:
 # Text to speak
 TEXT = "I like poop"
 
-# Deepgram TTS endpoint
-DEEPGRAM_TTS_URL = "https://api.deepgram.com/v1/speak"
+# Deepgram TTS endpoint - model can be in URL or as query param
+DEEPGRAM_TTS_BASE = "https://api.deepgram.com/v1/speak"
 
 def say_text(text: str):
     """Use Deepgram TTS to convert text to speech and play it."""
@@ -40,22 +40,35 @@ def say_text(text: str):
         "Content-Type": "application/json"
     }
     
-    # Deepgram TTS request payload
+    # Deepgram TTS request payload - only text in body (as per API requirement)
     payload = {
-        "text": text,
-        "model": "aura-asteria-en",  # You can change this to other voices
+        "text": text
+    }
+    
+    # Model selection
+    model = "aura-asteria-en"  # You can change this to other voices like "aura-luna-en", "aura-stella-en"
+    
+    # Query parameters for audio settings (model might need to be in URL)
+    params = {
         "encoding": "linear16",
         "container": "wav",
         "sample_rate": 24000
     }
     
+    # Try with model in URL path first
+    url = f"{DEEPGRAM_TTS_BASE}/{model}"
+    
     print("📡 Sending request to Deepgram...")
+    print(f"   URL: {url}")
+    print(f"   Params: {params}")
+    print(f"   Body: {payload}")
     try:
-        # Make API request
+        # Make API request - text in JSON body, model in URL, settings as query params
         response = requests.post(
-            DEEPGRAM_TTS_URL,
+            url,
             headers=headers,
             json=payload,
+            params=params,
             timeout=10
         )
         
