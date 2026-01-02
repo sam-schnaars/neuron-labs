@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "livekit-client": "^2.5.4",
-    "dotenv": "^16.5.0"
+    "dotenv": "^16.5.0",
+    "wrtc": "^0.4.7"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

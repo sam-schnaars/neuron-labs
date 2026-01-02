@@ -6,6 +6,24 @@
 // Polyfill for browser APIs that livekit-client expects in Node.js
 import { cpus } from 'os';
 
+// Try to load WebRTC adapter (wrtc package) - must be synchronous
+try {
+  const wrtc = require('wrtc');
+  // Use wrtc's WebRTC implementation
+  if (wrtc && typeof wrtc.RTCPeerConnection !== 'undefined') {
+    (globalThis as any).RTCPeerConnection = wrtc.RTCPeerConnection;
+    (globalThis as any).RTCSessionDescription = wrtc.RTCSessionDescription;
+    (globalThis as any).RTCIceCandidate = wrtc.RTCIceCandidate;
+    (globalThis as any).MediaStream = wrtc.MediaStream;
+    (globalThis as any).MediaStreamTrack = wrtc.MediaStreamTrack;
+    console.log('✅ WebRTC adapter (wrtc) loaded');
+  }
+} catch (error) {
+  console.warn('⚠️  WebRTC adapter (wrtc) not found. Install with: npm install wrtc');
+  console.warn('   Or use the Python client: python3 grok_pi_client.py');
+  console.warn('   Note: wrtc installation on Raspberry Pi may require additional build tools');
+}
+
 if (typeof globalThis.navigator === 'undefined') {
   (globalThis as any).navigator = {
     userAgent: 'Node.js',
