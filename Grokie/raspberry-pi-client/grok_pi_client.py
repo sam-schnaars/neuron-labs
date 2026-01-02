@@ -28,6 +28,7 @@ CHANNELS = 2  # WM8960 requires stereo
 
 async def capture_audio_from_wm8960(source: rtc.AudioSource):
     """Capture audio from WM8960 using sox and feed to AudioSource."""
+    process = None
     try:
         # Use sox to capture audio from WM8960
         # WM8960 requires stereo (2 channels)
@@ -50,78 +51,151 @@ async def capture_audio_from_wm8960(source: rtc.AudioSource):
             stderr=asyncio.subprocess.PIPE
         )
         
+        # Read stderr in background to catch errors
+        async def read_stderr():
+            while True:
+                line = await process.stderr.readline()
+                if not line:
+                    break
+                line_str = line.decode().strip()
+                if line_str and ('error' in line_str.lower() or 'Error' in line_str):
+                    print(f"sox stderr: {line_str}")
+        
+        stderr_task = asyncio.create_task(read_stderr())
+        
         # Read audio in chunks and feed to source
         # 100ms chunks: sample_rate * channels * bytes_per_sample * 0.1
         chunk_size = SAMPLE_RATE * CHANNELS * 2 // 10  # ~100ms of audio
         
-        try:
-            while True:
-                chunk = await asyncio.wait_for(process.stdout.read(chunk_size), timeout=1.0)
+        frame_count = 0
+        while True:
+            try:
+                # Read with shorter timeout to avoid blocking
+                chunk = await asyncio.wait_for(process.stdout.read(chunk_size), timeout=0.5)
                 if not chunk:
+                    print("sox process ended (no more data)")
                     break
                 
                 # Convert bytes to audio frame
-                # LiveKit AudioSource expects numpy array
                 try:
                     # Convert bytes to numpy array of int16 samples
                     audio_data = np.frombuffer(chunk, dtype=np.int16)
                     # Convert to float32 in range [-1.0, 1.0]
                     audio_float = audio_data.astype(np.float32) / 32768.0
                     
-                    # For stereo, reshape to (samples, channels) if needed
-                    # Or keep as interleaved - depends on LiveKit API
-                    # Try reshaping to (num_samples//2, 2) for stereo
+                    # For stereo, reshape to (samples, channels)
                     if CHANNELS == 2:
                         audio_float = audio_float.reshape(-1, 2)
                     
-                    # Feed to source
-                    source.capture_frame(audio_float)
-                    
-                except AttributeError as e:
-                    # If capture_frame doesn't exist, try alternative method
-                    print(f"⚠️  AudioSource API issue: {e}")
-                    print("   Trying alternative method...")
-                    # Some versions might use different method name
-                    if hasattr(source, 'push_frame'):
+                    # Feed to source - try different method names
+                    if hasattr(source, 'capture_frame'):
+                        source.capture_frame(audio_float)
+                    elif hasattr(source, 'push_frame'):
                         source.push_frame(audio_float)
+                    elif hasattr(source, 'add_frame'):
+                        source.add_frame(audio_float)
                     else:
-                        print("   No suitable method found for feeding audio")
+                        print(f"⚠️  AudioSource has no frame feeding method. Available: {dir(source)}")
                         break
+                    
+                    frame_count += 1
+                    if frame_count % 100 == 0:  # Log every 10 seconds
+                        print(f"Captured {frame_count} audio frames...")
+                    
                 except Exception as e:
                     print(f"Error feeding audio frame: {e}")
                     import traceback
                     traceback.print_exc()
-                    # Continue trying - don't break on first error
+                    # Continue trying
                     continue
                     
-        except asyncio.TimeoutError:
-            print("Audio capture timeout")
-        except Exception as e:
-            print(f"Error reading audio: {e}")
-        finally:
-            process.terminate()
-            await process.wait()
+            except asyncio.TimeoutError:
+                # Timeout is OK - sox might be waiting for audio
+                # Check if process is still alive
+                if process.returncode is not None:
+                    print(f"sox process exited with code {process.returncode}")
+                    break
+                # Otherwise continue waiting
+                continue
+            except Exception as e:
+                print(f"Error reading audio: {e}")
+                break
                 
     except Exception as e:
         print(f"Error in audio capture: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        if process:
+            try:
+                process.terminate()
+                await asyncio.wait_for(process.wait(), timeout=2.0)
+            except:
+                process.kill()
+                await process.wait()
 
 
-def setup_audio_output(track: rtc.Track):
-    """Set up audio output to WM8960 speakers."""
+async def setup_audio_output(track: rtc.Track):
+    """Set up audio output to WM8960 speakers by extracting frames and playing via aplay."""
     global audio_output_process
     
     try:
         print("Setting up audio output to WM8960...")
-        # LiveKit Python SDK should handle audio playback automatically
-        # If it doesn't work, we may need to extract frames and play via aplay
-        # For now, let's check if track has a way to get audio data
         
-        # Try to get the underlying audio stream
-        # This depends on LiveKit Python SDK implementation
-        print("✅ Audio output should work automatically via LiveKit SDK")
-        print("   If you don't hear audio, check speaker volume: alsamixer -c 1")
+        # Start aplay process for raw PCM playback
+        aplay_cmd = [
+            "aplay",
+            "-f", "S16_LE",
+            "-c", "1",  # Mono output (LiveKit sends mono)
+            "-r", str(SAMPLE_RATE),
+            "-D", f"hw:{SOUND_CARD_INDEX},0",
+            "-"  # stdin
+        ]
+        
+        print(f"Starting aplay: {' '.join(aplay_cmd)}")
+        audio_output_process = await asyncio.create_subprocess_exec(
+            *aplay_cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        # Set up frame handler to extract audio and play
+        async def handle_audio_frame(frame: rtc.AudioFrame):
+            try:
+                # Convert frame to bytes for aplay
+                # Frame is likely float32, need to convert to int16
+                if hasattr(frame, 'data'):
+                    audio_data = frame.data
+                elif hasattr(frame, 'samples'):
+                    audio_data = frame.samples
+                else:
+                    # Try to get raw data
+                    audio_data = np.array(frame, dtype=np.float32)
+                
+                # Convert float32 [-1.0, 1.0] to int16
+                audio_int16 = (audio_data * 32767).astype(np.int16)
+                # Convert to bytes (little-endian)
+                audio_bytes = audio_int16.tobytes()
+                
+                # Write to aplay
+                if audio_output_process and audio_output_process.stdin:
+                    audio_output_process.stdin.write(audio_bytes)
+                    await audio_output_process.stdin.drain()
+            except Exception as e:
+                print(f"Error playing audio frame: {e}")
+        
+        # Try to subscribe to audio frames
+        if hasattr(track, 'on_frame'):
+            track.on_frame(handle_audio_frame)
+            print("✅ Audio frame handler set up")
+        elif hasattr(track, 'add_sink'):
+            # Some versions use sink pattern
+            track.add_sink(handle_audio_frame)
+            print("✅ Audio sink added")
+        else:
+            print(f"⚠️  Track doesn't support frame extraction. Available methods: {[m for m in dir(track) if not m.startswith('_')]}")
+            print("   Audio output may not work - LiveKit Python SDK may need different approach")
+            
     except Exception as e:
         print(f"Error setting up audio output: {e}")
         import traceback
@@ -179,7 +253,7 @@ async def main():
     audio_output_process = None
     
     @room.on("track_subscribed")
-    def on_track_subscribed(
+    async def on_track_subscribed(
         track: rtc.Track,
         publication: rtc.TrackPublication,
         participant: rtc.RemoteParticipant,
@@ -187,7 +261,7 @@ async def main():
         if track.kind == rtc.TrackKind.KIND_AUDIO:
             print(f"🔊 Audio track received from {participant.identity}")
             # Set up audio playback through WM8960
-            setup_audio_output(track)
+            await setup_audio_output(track)
     
     @room.on("track_published")
     def on_track_published(
