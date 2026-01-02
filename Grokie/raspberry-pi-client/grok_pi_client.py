@@ -6,57 +6,35 @@ Connects to the GROK agent and handles voice input/output using the Pi's microph
 import asyncio
 import os
 import sys
+import requests
 from dotenv import load_dotenv
 from livekit import rtc
-
-# Try different import paths for API token generation
-try:
-    from livekit import api
-except ImportError:
-    try:
-        from livekit.api import AccessToken, VideoGrants
-        # Create a simple api module-like object
-        class ApiModule:
-            AccessToken = AccessToken
-            VideoGrants = VideoGrants
-        api = ApiModule()
-    except ImportError:
-        # Fallback: use livekit-server-sdk if available
-        try:
-            from livekit_server_sdk import AccessToken, VideoGrants
-            class ApiModule:
-                AccessToken = AccessToken
-                VideoGrants = VideoGrants
-            api = ApiModule()
-        except ImportError:
-            print("Error: Could not import LiveKit API module.")
-            print("Try installing: pip install livekit-server-sdk")
-            sys.exit(1)
 
 # Load environment variables
 load_dotenv()
 
 # Configuration
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
-LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "devkey")
-LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "secret")
 ROOM_NAME = os.getenv("LIVEKIT_ROOM", "test-room")
 PARTICIPANT_NAME = os.getenv("PARTICIPANT_NAME", "raspberry-pi")
+TOKEN_SERVER_URL = os.getenv("TOKEN_SERVER_URL", "http://localhost:8080")
 
 
 def generate_token(room_name: str, participant_name: str) -> str:
-    """Generate LiveKit access token."""
-    token = api.AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET) \
-        .with_identity(participant_name) \
-        .with_name("Raspberry Pi") \
-        .with_grants(api.VideoGrants(
-            room_join=True,
-            room=room_name,
-            can_publish=True,
-            can_subscribe=True,
-        ))
-    
-    return token.to_jwt()
+    """Generate LiveKit access token from token server."""
+    try:
+        response = requests.post(
+            f"{TOKEN_SERVER_URL}/api/token",
+            json={"room": room_name, "name": participant_name},
+            headers={"Content-Type": "application/json"}
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["token"]
+    except Exception as e:
+        print(f"Error getting token from server: {e}")
+        print(f"Make sure token server is running at {TOKEN_SERVER_URL}")
+        sys.exit(1)
 
 
 async def main():

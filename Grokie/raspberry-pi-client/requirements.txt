@@ -1,6 +1,6 @@
 livekit
-livekit-server-sdk
 python-dotenv
 pyaudio
+requests
 
 
