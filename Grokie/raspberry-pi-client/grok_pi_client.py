@@ -7,7 +7,31 @@ import asyncio
 import os
 import sys
 from dotenv import load_dotenv
-from livekit import rtc, api
+from livekit import rtc
+
+# Try different import paths for API token generation
+try:
+    from livekit import api
+except ImportError:
+    try:
+        from livekit.api import AccessToken, VideoGrants
+        # Create a simple api module-like object
+        class ApiModule:
+            AccessToken = AccessToken
+            VideoGrants = VideoGrants
+        api = ApiModule()
+    except ImportError:
+        # Fallback: use livekit-server-sdk if available
+        try:
+            from livekit_server_sdk import AccessToken, VideoGrants
+            class ApiModule:
+                AccessToken = AccessToken
+                VideoGrants = VideoGrants
+            api = ApiModule()
+        except ImportError:
+            print("Error: Could not import LiveKit API module.")
+            print("Try installing: pip install livekit-server-sdk")
+            sys.exit(1)
 
 # Load environment variables
 load_dotenv()
