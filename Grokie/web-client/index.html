@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GROK Voice Agent</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: #1a4d5e;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .container {
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        max-width: 600px;
+        width: 100%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+      .face-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 30px 0;
+        min-height: 300px;
+      }
+      .face-wrapper {
+        position: relative;
+        width: 280px;
+        height: 280px;
+        background: #1a4d5e;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      }
+      #faceCanvas {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+      }
+      h1 {
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+      }
+      .subtitle {
+        color: #666;
+        margin-bottom: 20px;
+        font-size: 15px;
+        font-weight: 400;
+      }
+      .status {
+        padding: 12px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .status.disconnected {
+        background: #fee;
+        color: #c33;
+      }
+      .status.connecting {
+        background: #ffe;
+        color: #c93;
+      }
+      .status.connected {
+        background: #efe;
+        color: #3c3;
+      }
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      .button {
+        width: 100%;
+        padding: 16px;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        margin-bottom: 10px;
+      }
+      .button.primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+      .button.primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+      }
+      .button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .input-group {
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: #333;
+        font-weight: 500;
+        font-size: 14px;
+      }
+      input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+      }
+      input:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+      .info {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 10px;
+        font-size: 13px;
+        color: #666;
+        line-height: 1.6;
+        margin-top: 20px;
+      }
+      .info strong {
+        color: #333;
+      }
+      .talking {
+        animation: pulse-glow 1.5s ease-in-out infinite;
+      }
+      @keyframes pulse-glow {
+        0%, 100% {
+          box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        50% {
+          box-shadow: 0 5px 30px rgba(102, 126, 234, 0.8);
+        }
+      }
+      .stop-btn {
+        background: #f0f0f0;
+        color: #333;
+        margin-top: 10px;
+      }
+      .stop-btn:not(:disabled) {
+        background: #ff4444;
+        color: white;
+      }
+      .stop-btn:not(:disabled):hover {
+        background: #cc0000;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(255, 0, 0, 0.3);
+      }
+      .billing-info {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+        border: 1px solid #ffc107;
+        border-radius: 10px;
+        padding: 12px 20px;
+        margin-bottom: 15px;
+      }
+      .billing-timer {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+        font-size: 14px;
+        color: #856404;
+      }
+      .billing-icon {
+        font-size: 18px;
+      }
+      .billing-cost {
+        background: #856404;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 15px;
+        font-size: 13px;
+      }
+      .status.connected {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #28a745;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 style="text-align: center; margin-bottom: 10px;">Grokie</h1>
+      <p class="subtitle" style="text-align: center;">Your friendly AI voice assistant</p>
+      
+      <div class="face-container">
+        <div class="face-wrapper">
+          <canvas id="faceCanvas" width="280" height="280"></canvas>
+        </div>
+      </div>
+
+      <div id="status" class="status disconnected">
+        <span class="status-indicator"></span>
+        <span id="statusText">Ready to connect</span>
+      </div>
+
+      <!-- Billing Timer (shown when connected) -->
+      <div id="billingInfo" class="billing-info" style="display: none;">
+        <div class="billing-timer">
+          <span class="billing-icon">💰</span>
+          <span>Session: <strong id="sessionTime">0:00</strong></span>
+          <span class="billing-cost">~$<span id="sessionCost">0.00</span></span>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 20px 0;">
+        <button id="connectBtn" class="button primary" style="font-size: 18px; padding: 18px;">
+          🎤 Start Talking
+        </button>
+        <button id="disconnectBtn" class="button stop-btn" disabled>
+          ⏹️ Stop Session (Save Credits)
+        </button>
+      </div>
+
+      <div class="info" id="info">
+        <strong>💡 Billing Info:</strong><br>
+        • You are charged <strong>$0.05/minute</strong> while connected<br>
+        • Click "Stop Session" when done to save credits<br>
+        • The timer shows your current session cost
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+

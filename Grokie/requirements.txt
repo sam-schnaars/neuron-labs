@@ -1,0 +1,4 @@
+livekit-agents[xai]
+livekit
+python-dotenv
+
