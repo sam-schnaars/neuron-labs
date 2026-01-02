@@ -147,7 +147,7 @@ export class GrokClient extends EventEmitter {
       });
 
       this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        if (track.kind === 'audio' && participant !== this.room?.localParticipant) {
+        if (track.kind === 'audio' && participant.identity !== this.room?.localParticipant?.identity) {
           console.log('🔊 Audio track subscribed from:', participant.identity);
           this.handleRemoteAudioTrack(track as RemoteAudioTrack);
         }
@@ -183,12 +183,8 @@ export class GrokClient extends EventEmitter {
       try {
         // Try to create a local audio track
         // This may fail in Node.js without proper WebRTC setup
-        this.localAudioTrack = await createLocalAudioTrack({
-          audio: {
-            sampleRate: this.options.sampleRate,
-            channelCount: 1,
-          }
-        });
+        // Note: createLocalAudioTrack() in Node.js may not work without WebRTC adapter
+        this.localAudioTrack = await createLocalAudioTrack();
         
         if (this.localAudioTrack && this.room) {
           await this.room.localParticipant.publishTrack(this.localAudioTrack);
