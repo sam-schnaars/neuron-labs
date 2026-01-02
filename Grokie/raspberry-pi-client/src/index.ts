@@ -3,6 +3,17 @@
  * Runs the client with WM8960 audio hardware support
  */
 
+// Polyfill for browser APIs that livekit-client expects in Node.js
+import { cpus } from 'os';
+
+if (typeof globalThis.navigator === 'undefined') {
+  (globalThis as any).navigator = {
+    userAgent: 'Node.js',
+    platform: process.platform,
+    hardwareConcurrency: cpus().length,
+  };
+}
+
 import { GrokClient } from './grok-client.js';
 import dotenv from 'dotenv';
 
