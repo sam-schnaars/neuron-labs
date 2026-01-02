@@ -2,5 +2,6 @@ livekit
 python-dotenv
 pyaudio
 requests
+numpy
 
 
