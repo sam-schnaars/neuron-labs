@@ -1,0 +1,10 @@
+pyaudio
+numpy
+torch
+torchaudio
+silero-vad
+pyttsx3
+openai-whisper
+requests
+python-dotenv
+
