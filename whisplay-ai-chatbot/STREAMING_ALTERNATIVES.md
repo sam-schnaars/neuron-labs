@@ -226,3 +226,4 @@ export class GoogleStreamingASR extends EventEmitter {
 3. Update environment variables
 4. Test - should work immediately with partial results!
 
+

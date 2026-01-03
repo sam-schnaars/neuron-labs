@@ -32,6 +32,24 @@ sudo apt install -y \
     alsa-utils \
     git
 
+# Check and fix /tmp space issue (common on Raspberry Pi)
+echo "🔍 Checking /tmp space..."
+TMP_SPACE=$(df /tmp 2>/dev/null | tail -1 | awk '{print $4}' || echo "0")
+TMP_SPACE_MB=$((TMP_SPACE / 1024))
+
+if [ $TMP_SPACE_MB -lt 100 ]; then
+    echo "⚠️  /tmp is low on space (${TMP_SPACE_MB} MB available)"
+    echo "🧹 Cleaning old files from /tmp..."
+    sudo find /tmp -type f -atime +7 -delete 2>/dev/null || true
+    
+    # Use home directory for temp files during pip install
+    echo "📁 Using home directory for temporary files..."
+    export TMPDIR="$HOME/tmp"
+    mkdir -p "$TMPDIR"
+else
+    echo "✅ /tmp has sufficient space (${TMP_SPACE_MB} MB available)"
+fi
+
 # Create virtual environment
 echo "🐍 Creating Python virtual environment..."
 python3 -m venv venv
@@ -39,8 +57,18 @@ python3 -m venv venv
 # Activate and install Python packages
 echo "📦 Installing Python packages..."
 source venv/bin/activate
+
+# Clear pip cache if it's large
+if [ -d ~/.cache/pip ]; then
+    CACHE_SIZE=$(du -sm ~/.cache/pip 2>/dev/null | cut -f1 || echo "0")
+    if [ $CACHE_SIZE -gt 500 ]; then
+        echo "🧹 Clearing large pip cache (${CACHE_SIZE} MB)..."
+        pip cache purge || true
+    fi
+fi
+
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install --no-cache-dir -r requirements.txt
 
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
