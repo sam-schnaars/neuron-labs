@@ -26,13 +26,32 @@ def is_raspberry_pi():
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "tiny" if is_raspberry_pi() else "base")
 
 # Setup
+import time
+
 print("Loading models...")
 print(f"Using Whisper model: {WHISPER_MODEL}")
+print("⚠️  NOTE: Model loading is CPU/RAM intensive. Ensure adequate power supply!")
+print("")
+
+# Load models gradually to reduce power spikes
+print("⏳ Loading Silero VAD model...")
 vad_model = load_silero_vad()
+print("✅ VAD model loaded")
+time.sleep(1)  # Brief pause to let system stabilize
+
+print("⏳ Loading Whisper model into memory...")
+print("   This may take 30-60 seconds on Pi and uses significant power.")
+print("   If Pi shuts down, check power supply and cooling!")
 whisper_model = whisper.load_model(WHISPER_MODEL)
+print("✅ Whisper model loaded")
+time.sleep(1)  # Brief pause
+
+print("⏳ Initializing TTS engine...")
 tts_engine = init_tts()
 tts_engine.setProperty('rate', 150)
 tts_engine.setProperty('volume', 0.8)
+print("✅ TTS engine ready")
+print("✅ All models loaded! Starting voice agent...\n")
 
 audio_queue = queue.Queue()
 

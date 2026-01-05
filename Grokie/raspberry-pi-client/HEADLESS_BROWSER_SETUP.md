@@ -235,3 +235,5 @@ CHROMIUM_PATH=/usr/bin/chromium-browser node run_web_client_headless.js
 4. Consider hybrid: use headless for development, Python for production
 
 
+
+

@@ -119,3 +119,5 @@ The error is almost always caused by `/tmp` being full (RAM-based), not your SD 
 export TMPDIR=/home/pi/tmp && mkdir -p /home/pi/tmp && pip install -r requirements.txt
 ```
 
+
+

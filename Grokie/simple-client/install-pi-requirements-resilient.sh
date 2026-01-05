@@ -139,3 +139,5 @@ echo "   3. Ensure Pi has adequate power supply (2.5A+ recommended)"
 echo "   4. Close other network-intensive applications"
 echo ""
 
+
+

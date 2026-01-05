@@ -140,3 +140,5 @@ echo ""
 echo "📋 Final status:"
 pip list | grep -E "$(IFS='|'; echo "${REQUIRED_PACKAGES[*]}")" || echo "Run 'pip list' to see all packages"
 
+
+

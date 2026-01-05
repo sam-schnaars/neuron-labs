@@ -61,7 +61,7 @@ async def request_handler(req):
     # Available voices: 'Ara', 'Rex', 'Sal', 'Eve', 'Leo'
     session = AgentSession(
         llm=xai.realtime.RealtimeModel(
-            # voice='Ara',  # Uncomment to specify a voice
+            voice='Eve',  # Uncomment to specify a voice
         ),
     )
     
@@ -70,7 +70,7 @@ async def request_handler(req):
     
     # Generate an initial greeting
     await session.generate_reply(
-        instructions="Greet the user as Grokie with a funny, quick-witted one-liner. Keep it to 1-2 sentences."
+        instructions="Say hello Sam let's start your Japanese lesson today."
     )
 
 
