@@ -137,3 +137,5 @@ watch -n 1 'vcgencmd measure_temp && vcgencmd get_throttled && free -h'
 
 
 
+
+
