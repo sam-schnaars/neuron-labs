@@ -10,7 +10,7 @@ let localAudioTrack: LocalAudioTrack | null = null;
 let audioContext: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
 let animationFrameId: number | null = null;
-let isSpeaking = false;
+let remoteAudioSource: MediaStreamAudioSourceNode | null = null;
 
 // Agent state
 let isAgentEnabled = false;
@@ -20,147 +20,115 @@ const DEFAULT_ROOM = 'test-room';
 const DEFAULT_NAME = 'User';
 
 // Get DOM elements
-const chatContainer = document.getElementById('chatContainer')!;
 const toggleGrokieBtn = document.getElementById('toggleGrokieBtn') as HTMLButtonElement;
+const statusIndicator = document.getElementById('statusIndicator') as HTMLElement;
+const faceCircle = document.getElementById('faceCircle') as SVGCircleElement;
+const leftEye = document.getElementById('leftEye') as SVGEllipseElement;
+const rightEye = document.getElementById('rightEye') as SVGEllipseElement;
+const mouth = document.getElementById('mouth') as SVGEllipseElement;
 
 // API base URL
 const tokenServerUrl = import.meta.env.VITE_TOKEN_SERVER_URL || '/api';
 
-// Transcription state for chat - track last message per participant for 1:1 turns
-const lastMessageByParticipant = new Map<string, HTMLElement>();
+// ========== FACE ANIMATION ==========
 
-// ========== CHAT DISPLAY FUNCTIONS ==========
+function updateStatus(status: string, connected: boolean) {
+  statusIndicator.textContent = status;
+  statusIndicator.className = `status-indicator ${connected ? 'connected' : 'disconnected'}`;
+}
 
-function addChatMessage(role: 'user' | 'assistant', text: string, isInterim: boolean = false) {
-  const messageDiv = document.createElement('div');
-  messageDiv.className = `chat-message ${role} ${isInterim ? 'interim' : ''}`;
+function animateFace(audioLevel: number) {
+  // Normalize audio level (0-255 to 0-1)
+  const normalizedLevel = Math.min(audioLevel / 255, 1);
   
-  const label = role === 'user' ? 'You' : 'Grokie';
+  // Only animate if there's significant audio
+  const threshold = 0.1;
+  const isSpeaking = normalizedLevel > threshold;
   
-  messageDiv.innerHTML = `
-    <div class="chat-bubble">
-      <div class="chat-label">${label}</div>
-      <div class="chat-text">${text}</div>
-    </div>
-  `;
-  
-  chatContainer.appendChild(messageDiv);
-  
-  // Track last message by participant
-  if (!isInterim) {
-    lastMessageByParticipant.set(role, messageDiv);
+  if (isSpeaking) {
+    // Animate face based on audio level
+    const scale = 1 + (normalizedLevel * 0.1); // Slight scale up when speaking
+    faceCircle.style.transform = `scale(${scale})`;
+    
+    // Animate mouth based on audio level
+    const mouthHeight = 8 + (normalizedLevel * 15); // Mouth opens more with louder audio
+    const mouthWidth = 20 + (normalizedLevel * 10);
+    mouth.setAttribute('ry', mouthHeight.toString());
+    mouth.setAttribute('rx', mouthWidth.toString());
+    
+    // Blink eyes occasionally
+    if (Math.random() < 0.05) {
+      leftEye.classList.add('speaking');
+      rightEye.classList.add('speaking');
+      setTimeout(() => {
+        leftEye.classList.remove('speaking');
+        rightEye.classList.remove('speaking');
+      }, 300);
+    }
+    
+    // Add mouth animation class
+    mouth.classList.add('speaking');
+  } else {
+    // Return to neutral state
+    faceCircle.style.transform = 'scale(1)';
+    mouth.setAttribute('ry', '8');
+    mouth.setAttribute('rx', '20');
+    mouth.classList.remove('speaking');
+  }
+}
+
+function startAudioAnalysis(audioElement: HTMLAudioElement) {
+  if (audioContext) {
+    audioContext.close();
   }
   
-  scrollChatToBottom();
-  return messageDiv;
-}
-
-function scrollChatToBottom() {
-  // Use setTimeout with requestAnimationFrame to ensure DOM is fully updated
-  setTimeout(() => {
-    requestAnimationFrame(() => {
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    });
-  }, 0);
-}
-
-async function loadChatHistory() {
+  audioContext = new AudioContext();
+  
+  // Create analyser node
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.8;
+  
+  // Connect audio element to analyser
   try {
-    const response = await fetch(`${tokenServerUrl}/markdown/conversation_history?room=${DEFAULT_ROOM}`);
-    if (!response.ok) {
-      chatContainer.innerHTML = '<div class="chat-message assistant"><div class="chat-bubble"><div class="chat-text">No conversation history yet. Start talking to Grokie!</div></div></div>';
+    const source = audioContext.createMediaElementSource(audioElement);
+    source.connect(analyser);
+    analyser.connect(audioContext.destination);
+    remoteAudioSource = source;
+  } catch (error) {
+    console.error('Error creating audio source:', error);
+    // Fallback: try to analyze the audio element directly
+    if (audioElement.captureStream) {
+      const stream = audioElement.captureStream();
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+    }
+  }
+  
+  // Start animation loop
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+  
+  function analyzeAudio() {
+    if (!analyser || !audioContext || audioContext.state === 'closed') {
       return;
     }
     
-    const content = await response.text();
-    if (!content) {
-      chatContainer.innerHTML = '<div class="chat-message assistant"><div class="chat-bubble"><div class="chat-text">No conversation history yet. Start talking to Grokie!</div></div></div>';
-      return;
-    }
+    analyser.getByteFrequencyData(dataArray);
     
-    // Parse conversation history markdown
-    // Pattern: ### User: or ### Assistant: followed by content
-    const messagePattern = /###\s+(User|Assistant):\s*\n\n(.+?)(?=\n\n\*\*Time:\*\*|###|$)/gs;
-    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
-    
-    let match;
-    while ((match = messagePattern.exec(content)) !== null) {
-      const role = match[1].toLowerCase() === 'user' ? 'user' : 'assistant';
-      const messageContent = match[2].trim();
-      messages.push({ role, content: messageContent });
+    // Calculate average audio level
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i];
     }
+    const average = sum / dataArray.length;
     
-    // Display messages
-    chatContainer.innerHTML = '';
-    if (messages.length === 0) {
-      chatContainer.innerHTML = '<div class="chat-message assistant"><div class="chat-bubble"><div class="chat-text">No conversation history yet. Start talking to Grokie!</div></div></div>';
-    } else {
-      messages.forEach(msg => {
-        addChatMessage(msg.role, msg.content);
-      });
-    }
-  } catch (error) {
-    console.error('Error loading chat history:', error);
-    chatContainer.innerHTML = '<div class="chat-message assistant"><div class="chat-bubble"><div class="chat-text">Error loading conversation history.</div></div></div>';
+    // Animate face
+    animateFace(average);
+    
+    animationFrameId = requestAnimationFrame(analyzeAudio);
   }
-}
-
-// ========== TRANSCRIPTION HANDLER ==========
-
-function setupTranscriptionHandler(room: Room) {
-  try {
-    room.registerTextStreamHandler('lk.transcription', async (reader, participantInfo) => {
-      try {
-        const message = await reader.readAll();
-        const attributes = reader.info?.attributes || {};
-        const isTranscription = attributes['lk.transcribed_track_id'] != null;
-        const isFinal = attributes['lk.transcription_final'] === 'true';
-        
-        if (!isTranscription || !message) {
-          return;
-        }
-        
-        // Determine if this is from user or assistant
-        const isUser = participantInfo.identity === DEFAULT_NAME || 
-                      participantInfo.identity === room.localParticipant.identity;
-        const role = isUser ? 'user' : 'assistant';
-        
-        // For 1:1 turns, track by role only - one message per role at a time
-        // Check if we have a last message from this role
-        const lastMessage = lastMessageByParticipant.get(role);
-        
-        if (lastMessage && lastMessage.classList.contains('interim')) {
-          // Update existing interim message
-          const textEl = lastMessage.querySelector('.chat-text');
-          if (textEl) {
-            textEl.textContent = message;
-          }
-          
-          if (isFinal) {
-            // Mark as final - this completes the turn
-            lastMessage.classList.remove('interim');
-          }
-        } else if (isFinal) {
-          // New final message = new turn - create new message
-          // Only create if this is final (not interim) to ensure 1:1 turns
-          const messageDiv = addChatMessage(role, message, false);
-          lastMessageByParticipant.set(role, messageDiv);
-        } else if (!lastMessage) {
-          // First message from this participant (interim)
-          const messageDiv = addChatMessage(role, message, true);
-          lastMessageByParticipant.set(role, messageDiv);
-        }
-        // If we have a final message and receive another interim, ignore it
-        // (shouldn't happen, but handle gracefully)
-      } catch (error) {
-        console.error('Error reading transcription:', error);
-      }
-    });
-    
-    console.log('Transcription handler registered');
-  } catch (error) {
-    console.error('Error setting up transcription handler:', error);
-  }
+  
+  analyzeAudio();
 }
 
 // ========== LIVEKIT CONNECTION FUNCTIONS ==========
@@ -205,6 +173,8 @@ async function requestMicrophonePermission(): Promise<MediaStream> {
 
 async function connect() {
   try {
+    updateStatus('Connecting...', false);
+    
     // Request microphone permission
     const stream = await requestMicrophonePermission();
     stream.getTracks().forEach(track => track.stop());
@@ -218,10 +188,8 @@ async function connect() {
     // Set up event handlers
     room.on(RoomEvent.Connected, async () => {
       console.log('Connected to room:', DEFAULT_ROOM);
+      updateStatus('Connected', true);
       
-      // Register transcription handler
-      setupTranscriptionHandler(room);
-
       // Create and publish microphone track
       try {
         localAudioTrack = await createLocalAudioTrack();
@@ -234,6 +202,7 @@ async function connect() {
 
     room.on(RoomEvent.Disconnected, () => {
       console.log('Disconnected from room');
+      updateStatus('Disconnected', false);
       localAudioTrack = null;
       
       // Stop audio analysis
@@ -245,8 +214,14 @@ async function connect() {
         audioContext.close();
         audioContext = null;
         analyser = null;
+        remoteAudioSource = null;
       }
-      isSpeaking = false;
+      
+      // Reset face to neutral
+      faceCircle.style.transform = 'scale(1)';
+      mouth.setAttribute('ry', '8');
+      mouth.setAttribute('rx', '20');
+      mouth.classList.remove('speaking');
     });
 
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
@@ -255,8 +230,14 @@ async function connect() {
       participant.on('trackSubscribed', (track) => {
         if (track.kind === 'audio' && track instanceof RemoteAudioTrack) {
           const audioElement = track.attach() as HTMLAudioElement;
+          audioElement.style.display = 'none'; // Hide audio element
           document.body.appendChild(audioElement);
           audioElement.play().catch(console.error);
+          
+          // Start analyzing audio for face animation
+          audioElement.addEventListener('playing', () => {
+            startAudioAnalysis(audioElement);
+          });
         }
       });
     });
@@ -264,8 +245,14 @@ async function connect() {
     room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
       if (track.kind === 'audio' && participant !== room?.localParticipant && track instanceof RemoteAudioTrack) {
         const audioElement = track.attach() as HTMLAudioElement;
+        audioElement.style.display = 'none'; // Hide audio element
         document.body.appendChild(audioElement);
         audioElement.play().catch(console.error);
+        
+        // Start analyzing audio for face animation
+        audioElement.addEventListener('playing', () => {
+          startAudioAnalysis(audioElement);
+        });
       }
     });
 
@@ -277,6 +264,7 @@ async function connect() {
 
   } catch (error) {
     console.error('Connection error:', error);
+    updateStatus('Connection Failed', false);
     if (room) {
       await disconnect();
     }
@@ -304,11 +292,18 @@ async function disconnect() {
     audioContext.close();
     audioContext = null;
     analyser = null;
+    remoteAudioSource = null;
   }
-  isSpeaking = false;
 
   // Remove all audio elements
   document.querySelectorAll('audio').forEach(el => el.remove());
+  
+  // Reset face
+  updateStatus('Disconnected', false);
+  faceCircle.style.transform = 'scale(1)';
+  mouth.setAttribute('ry', '8');
+  mouth.setAttribute('rx', '20');
+  mouth.classList.remove('speaking');
 }
 
 // ========== AGENT TOGGLE ==========
@@ -330,7 +325,7 @@ async function toggleGrokie() {
     } catch (error) {
       console.error('Failed to connect:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      addChatMessage('assistant', `Failed to connect: ${errorMsg}`);
+      updateStatus(`Connection Failed: ${errorMsg}`, false);
     }
   }
 }
@@ -340,8 +335,8 @@ async function toggleGrokie() {
 // Setup agent toggle
 toggleGrokieBtn.addEventListener('click', toggleGrokie);
 
-// Load chat history
-loadChatHistory();
+// Initialize status
+updateStatus('Disconnected', false);
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {

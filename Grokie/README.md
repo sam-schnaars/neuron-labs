@@ -23,12 +23,30 @@ This project demonstrates how to use the GROK voice agent API through LiveKit Ag
 
 You need a LiveKit server running. Choose one option:
 
-**Option A: Local Development Server (Easiest)**
-```bash
-# Install LiveKit CLI
-npm install -g livekit-cli
+**Option A: Local Development Server**
 
-# Start local server
+**Using Docker (Recommended):**
+```bash
+# Install Docker if needed
+sudo dnf install docker
+sudo systemctl start docker
+
+# Run LiveKit server
+docker run --rm -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server --dev
+```
+
+**Using Binary Download:**
+```bash
+# Download from GitHub releases
+wget https://github.com/livekit/livekit/releases/latest/download/livekit-server_linux_amd64.tar.gz
+tar -xzf livekit-server_linux_amd64.tar.gz
+chmod +x livekit-server
+./livekit-server --dev
+```
+
+**Using Installation Script (may not work on all systems):**
+```bash
+curl -sSL https://get.livekit.io | bash
 livekit-server --dev
 ```
 

@@ -12,155 +12,155 @@
       }
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        background: #000000;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: #ffffff;
         overflow: hidden;
-      }
-      
-      /* App Container */
-      .app-container {
         display: flex;
+        justify-content: center;
+        align-items: center;
         height: 100vh;
-        background: #000000;
       }
       
-      /* Chat Panel */
-      .chat-panel {
-        flex: 1;
+      /* Face Container */
+      .face-container {
         display: flex;
         flex-direction: column;
-        background: #000000;
-        overflow: hidden;
-      }
-      
-      .chat-container {
-        flex: 1;
-        overflow-y: auto;
-        overflow-x: hidden;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        width: 100%;
         height: 100%;
-        padding-bottom: 80px;
       }
       
-      .chat-container::-webkit-scrollbar {
-        width: 8px;
-      }
-      
-      .chat-container::-webkit-scrollbar-track {
-        background: #0a0a0a;
-      }
-      
-      .chat-container::-webkit-scrollbar-thumb {
-        background: #444444;
-        border-radius: 4px;
-      }
-      
-      .chat-container::-webkit-scrollbar-thumb:hover {
-        background: #555555;
-      }
-      
-      .chat-message {
+      .face-wrapper {
+        position: relative;
+        width: 400px;
+        height: 400px;
         display: flex;
-        gap: 12px;
-        align-items: flex-start;
+        align-items: center;
+        justify-content: center;
       }
       
-      .chat-message.user {
-        flex-direction: row;
+      .animated-face {
+        width: 100%;
+        height: 100%;
+        filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3));
       }
       
-      .chat-message.assistant {
-        flex-direction: row-reverse;
+      /* Face parts */
+      .face-circle {
+        fill: #ffdbac;
+        transition: transform 0.1s ease-out;
       }
       
-      .chat-bubble {
-        max-width: 70%;
-        padding: 12px 16px;
-        border: 1px solid #ffffff;
-        border-radius: 12px;
-        background: transparent;
+      .eye {
+        fill: #000000;
+        transition: transform 0.15s ease-out;
       }
       
-      .chat-message.user .chat-bubble {
-        background: #1a1a1a;
+      .eye.speaking {
+        animation: blink 0.3s ease-in-out;
       }
       
-      .chat-message.assistant .chat-bubble {
-        background: #1a1a1a;
+      .mouth {
+        fill: #000000;
+        transition: d 0.1s ease-out;
       }
       
-      .chat-label {
-        font-size: 12px;
-        color: #888888;
-        font-weight: 600;
-        margin-bottom: 4px;
-        text-transform: uppercase;
+      .mouth.speaking {
+        animation: mouthMove 0.15s ease-in-out infinite;
       }
       
-      .chat-text {
-        color: #ffffff;
-        font-size: 15px;
-        line-height: 1.5;
-        word-wrap: break-word;
+      @keyframes blink {
+        0%, 100% { transform: scaleY(1); }
+        50% { transform: scaleY(0.1); }
       }
       
-      .chat-message.interim {
-        opacity: 0.6;
-        font-style: italic;
+      @keyframes mouthMove {
+        0%, 100% { transform: scaleY(1); }
+        50% { transform: scaleY(1.2); }
       }
       
       /* Bottom Controls */
       .bottom-controls {
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: #111111;
-        border-top: 1px solid #333333;
-        padding: 16px;
-        display: flex;
-        justify-content: center;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
         z-index: 1000;
       }
       
       .toggle-button {
         padding: 12px 24px;
-        background: transparent;
-        border: 1px solid #ffffff;
-        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 25px;
         color: #ffffff;
         font-size: 16px;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.3s;
       }
       
       .toggle-button:hover {
-        background: #1a1a1a;
+        background: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.5);
       }
       
       .toggle-button.active {
-        background: #667eea;
-        border-color: #667eea;
+        background: rgba(255, 255, 255, 0.4);
+        border-color: rgba(255, 255, 255, 0.6);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      }
+      
+      /* Status indicator */
+      .status-indicator {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 8px 16px;
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        font-size: 14px;
+        color: #ffffff;
+        z-index: 1000;
+      }
+      
+      .status-indicator.connected {
+        background: rgba(76, 175, 80, 0.3);
+      }
+      
+      .status-indicator.disconnected {
+        background: rgba(244, 67, 54, 0.3);
       }
     </style>
   </head>
   <body>
-    <div class="app-container">
-      <!-- Chat Panel -->
-      <div class="chat-panel">
-        <div class="chat-container" id="chatContainer">
-          <!-- Chat messages will be inserted here -->
-        </div>
+    <div class="face-container">
+      <div class="status-indicator" id="statusIndicator">Disconnected</div>
+      <div class="face-wrapper">
+        <svg class="animated-face" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <!-- Face circle -->
+          <circle class="face-circle" cx="100" cy="100" r="80" id="faceCircle"/>
+          
+          <!-- Left eye -->
+          <ellipse class="eye" cx="70" cy="80" rx="8" ry="12" id="leftEye"/>
+          
+          <!-- Right eye -->
+          <ellipse class="eye" cx="130" cy="80" rx="8" ry="12" id="rightEye"/>
+          
+          <!-- Mouth -->
+          <ellipse class="mouth" cx="100" cy="130" rx="20" ry="8" id="mouth"/>
+        </svg>
       </div>
     </div>
     
     <!-- Bottom Controls -->
     <div class="bottom-controls">
-      <button id="toggleGrokieBtn" class="toggle-button">turn grokie off</button>
+      <button id="toggleGrokieBtn" class="toggle-button">turn grokie on</button>
     </div>
     
     <script type="module" src="/src/main.ts"></script>
