@@ -313,14 +313,14 @@ async function toggleGrokie() {
     // Disable agent
     await disconnect();
     isAgentEnabled = false;
-    toggleGrokieBtn.textContent = 'turn grokie on';
+    toggleGrokieBtn.textContent = 'turn grokie';
     toggleGrokieBtn.classList.remove('active');
   } else {
     // Enable agent
     try {
       await connect();
       isAgentEnabled = true;
-      toggleGrokieBtn.textContent = 'turn grokie off';
+      toggleGrokieBtn.textContent = 'turn ';
       toggleGrokieBtn.classList.add('active');
     } catch (error) {
       console.error('Failed to connect:', error);

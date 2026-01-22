@@ -1,0 +1,4 @@
+2026-01-21T20:23:34.529-0800	INFO	livekit	server/main.go:212	starting in development mode
+2026-01-21T20:23:34.530-0800	INFO	livekit	server/main.go:215	no keys provided, using placeholder keys	{"API Key": "devkey", "API Secret": "secret"}
+2026-01-21T20:23:34.531-0800	INFO	livekit	routing/interfaces.go:180	using single-node routing
+listen udp 192.168.86.154:7882: bind: address already in use
