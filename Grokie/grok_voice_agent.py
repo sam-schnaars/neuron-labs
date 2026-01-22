@@ -397,10 +397,10 @@ class GrokAssistant(Agent):
             "Always use these functions when the user requests memory operations."
         )
         super().__init__(
-            instructions=instructions or default_instructions,
+            instructions= default_instructions,
         )
         self.memory = memory
-        self.base_instructions = instructions or default_instructions
+        self.base_instructions = default_instructions
     
     @function_tool()
     async def save_note(self, content: str, category: str = None) -> str:
