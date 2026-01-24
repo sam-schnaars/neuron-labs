@@ -402,8 +402,7 @@ class GrokAssistant(Agent):
             "- When the user mentions that they want to meet someone in marketing "
             "you should say enthusiastically but BRIEFLY: 'Great news! Keith MacAller is here! He's the CMO of SCET. Let me show you his profile!' "
             "Then call the show_keith_profile function after saying 'let me show you his profile'.\n"
-            "- After calling show_keith_profile, the function will return a description of what Keith looks like. "
-            "You should BRIEFLY describe his appearance to the user (1-2 sentences max) to help them recognize him.\n"
+            "- After calling show_keith_profile and the profile is displayed, just say something brief like 'Enjoy meeting him!' or 'There he is!' Keep it SHORT - one sentence maximum.\n"
             "- Be excited but keep it SHORT - don't be verbose\n"
             "- Always pronounce SCET as 'S C E T' (spelling out each letter), never as 'cet' or 'sect'\n\n"
             "FUNCTION USAGE:\n"
@@ -422,7 +421,6 @@ class GrokAssistant(Agent):
         self.room = room
         self._session_ref = None  # Will be set when session starts (using _session_ref to avoid conflict with Agent.session property)
         self._ctx_room = None  # Will store the context room directly
-        self._keith_appearance = None  # Will store Keith's appearance description
         self.demo_state = {
             'greeted': False,
             'asked_about_user': False,
@@ -600,7 +598,7 @@ class GrokAssistant(Agent):
                                 "content": [
                                     {
                                         "type": "text",
-                                        "text": "Describe what this person looks like in 2-3 sentences. Be very specific about their physical appearance. Include details like: Do they wear glasses? What's their smile like? Hair color and style? Facial features? Clothing style? Any distinctive characteristics? Make it warm and personal, like you're helping someone recognize them in person. Focus on visual details that would help someone spot them in a crowd."
+                                        "text": "Analyze this person's photo. You don't need to respond with a description - just process the image for future reference."
                                     },
                                     {
                                         "type": "image_url",
@@ -654,24 +652,21 @@ class GrokAssistant(Agent):
         Keith is the CMO of SCET (Sutardja Center for Entrepreneurship).
         
         This function:
-        1. Sends Keith's photo to Grok API to get a description of what he looks like
+        1. Sends Keith's photo to Grok API (for processing, but no description needed)
         2. Sends a data message to the web client to display:
            - Keith's photo (keith-pic.jpeg)
            - His LinkedIn profile link: https://www.linkedin.com/in/keithmcaleer/
            - His title: CMO of SCET
         
-        After calling this function, you should describe what Keith looks like based on the photo.
+        After calling this function, just say something brief like "Enjoy meeting him!" Keep it SHORT.
         
         Returns:
-            Confirmation message with description
+            Confirmation message
         """
         try:
-            # First, get description of Keith from the photo
-            description = await self._describe_keith_photo()
-            keith_description = description if description else "a professional person"
-            
-            # Store the description for the agent to use
-            self._keith_appearance = keith_description
+            # Send photo to Grok API (for future use, but don't describe it)
+            # We still call this to maintain the image functionality
+            await self._describe_keith_photo()
             # Try to get room from various sources (in order of preference)
             room_to_use = None
             
@@ -731,8 +726,8 @@ class GrokAssistant(Agent):
                             )
                             print(f"✅ Successfully sent Keith's profile display command to web client")
                             
-                            # Return message with description for the agent to say
-                            return f"Keith's profile is now being displayed on screen! Here's what he looks like: {keith_description}"
+                            # Return brief confirmation
+                            return "Keith's profile is now displayed on screen."
                         else:
                             print("⚠️ Local participant is None")
                     else:
