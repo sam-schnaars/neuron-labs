@@ -15,6 +15,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from parent directory (for keith-pic.jpeg)
+app.use(express.static(path.join(__dirname, '..')));
+
 const LIVEKIT_URL = process.env.LIVEKIT_URL || 'ws://localhost:7880';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'devkey';
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'secret';
@@ -97,6 +100,16 @@ app.post('/api/token', async (req, res) => {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', livekit_url: LIVEKIT_URL });
+});
+
+// Serve Keith's image directly
+app.get('/keith-pic.jpeg', (req, res) => {
+  const imagePath = path.join(__dirname, '..', 'keith-pic.jpeg');
+  if (fs.existsSync(imagePath)) {
+    res.sendFile(imagePath);
+  } else {
+    res.status(404).json({ error: 'Image not found' });
+  }
 });
 
 // Parse markdown to extract translations

@@ -26,6 +26,11 @@ const faceCircle = document.getElementById('faceCircle') as SVGCircleElement;
 const leftEye = document.getElementById('leftEye') as SVGEllipseElement;
 const rightEye = document.getElementById('rightEye') as SVGEllipseElement;
 const mouth = document.getElementById('mouth') as SVGEllipseElement;
+const profileContainer = document.getElementById('profileContainer') as HTMLElement;
+const profileImage = document.getElementById('profileImage') as HTMLImageElement;
+const profileName = document.getElementById('profileName') as HTMLElement;
+const profileTitle = document.getElementById('profileTitle') as HTMLElement;
+const profileLinkedIn = document.getElementById('profileLinkedIn') as HTMLAnchorElement;
 
 // API base URL
 const tokenServerUrl = import.meta.env.VITE_TOKEN_SERVER_URL || '/api';
@@ -256,6 +261,31 @@ async function connect() {
       }
     });
 
+    // Listen for data messages from the agent
+    room.on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+      console.log('📨 Data message received!', {
+        participant: participant?.identity,
+        kind,
+        topic,
+        payloadLength: payload.length
+      });
+      
+      try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        console.log('✅ Parsed data message:', data);
+        
+        if (data.type === 'show_profile') {
+          console.log('🎯 Showing profile for:', data.name);
+          showProfile(data);
+        } else {
+          console.log('⚠️ Unknown data message type:', data.type);
+        }
+      } catch (error) {
+        console.error('❌ Error parsing data message:', error);
+        console.error('Raw payload:', payload);
+      }
+    });
+
     // Generate token and connect
     const token = await generateToken(DEFAULT_ROOM, DEFAULT_NAME);
     await room.connect(LIVEKIT_URL, token, {
@@ -304,6 +334,84 @@ async function disconnect() {
   mouth.setAttribute('ry', '8');
   mouth.setAttribute('rx', '20');
   mouth.classList.remove('speaking');
+}
+
+// ========== PROFILE DISPLAY ==========
+
+function showProfile(profileData: {
+  name: string;
+  title: string;
+  linkedin: string;
+  image: string;
+}) {
+  console.log('🖼️ showProfile called with:', profileData);
+  
+  // Hide the face animation
+  const faceWrapper = document.querySelector('.face-wrapper') as HTMLElement;
+  if (faceWrapper) {
+    faceWrapper.style.display = 'none';
+    console.log('✅ Hidden face wrapper');
+  }
+  
+  // Set profile data
+  profileName.textContent = profileData.name;
+  profileTitle.textContent = profileData.title;
+  profileLinkedIn.href = profileData.linkedin;
+  console.log('✅ Set profile text data');
+  
+  // Load image - try multiple paths
+  const imagePaths = [
+    profileData.image,
+    `/keith-pic.jpeg`,  // Direct server endpoint
+    `http://localhost:8080/keith-pic.jpeg`,  // Server endpoint with port
+    `../${profileData.image}`,
+    `../../${profileData.image}`,
+    `./${profileData.image}`,
+  ];
+  
+  // Try to load image from various paths
+  const tryLoadImage = (pathIndex: number) => {
+    if (pathIndex >= imagePaths.length) {
+      console.warn('Could not load profile image from any path');
+      profileImage.style.display = 'none';
+      return;
+    }
+    
+    const img = new Image();
+    img.onload = () => {
+      profileImage.src = img.src;
+      profileImage.style.display = 'block';
+      console.log('✅ Profile image loaded from:', img.src);
+    };
+    img.onerror = () => {
+      console.warn('❌ Failed to load image from:', imagePaths[pathIndex]);
+      tryLoadImage(pathIndex + 1);
+    };
+    console.log(`🖼️ Trying to load image from: ${imagePaths[pathIndex]}`);
+    img.src = imagePaths[pathIndex];
+  };
+  
+  tryLoadImage(0);
+  
+  // Show profile container
+  profileContainer.classList.add('visible');
+  console.log('✅ Profile container made visible');
+  console.log('📋 Final profile data:', {
+    name: profileName.textContent,
+    title: profileTitle.textContent,
+    linkedin: profileLinkedIn.href,
+    imageSrc: profileImage.src
+  });
+}
+
+function hideProfile() {
+  profileContainer.classList.remove('visible');
+  
+  // Show the face animation again
+  const faceWrapper = document.querySelector('.face-wrapper') as HTMLElement;
+  if (faceWrapper) {
+    faceWrapper.style.display = 'flex';
+  }
 }
 
 // ========== AGENT TOGGLE ==========

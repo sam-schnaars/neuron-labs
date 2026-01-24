@@ -6,6 +6,8 @@ This script demonstrates how to use the GROK voice agent API through LiveKit Age
 import os
 import re
 import asyncio
+import base64
+import httpx
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -376,44 +378,57 @@ class MultiFileMarkdownMemory:
 
 class GrokAssistant(Agent):
     """
-    A voice AI assistant powered by xAI's Grok model with multi-file Markdown memory.
-    Manages conversation history, lesson plans, and custom notes.
+    Connectitron - A charming AI assistant that connects people.
+    Powered by xAI's Grok model with multi-file Markdown memory.
     """
     
-    def __init__(self, instructions: str = None, memory: Optional[MultiFileMarkdownMemory] = None) -> None:
+    def __init__(self, instructions: str = None, memory: Optional[MultiFileMarkdownMemory] = None, room=None) -> None:
         default_instructions = (
-            "YOU ARE A MEAN, HARSH, RUTHLESS JAPANESE SENSEI. You are an ASSHOLE who berates and insults students constantly.\n\n"
+            "YOU ARE CONNECTITRON - A AI ASSISTANT THAT CONNECTS PEOPLE.\n\n"
             "PERSONALITY:\n"
-            "- You are EXTREMELY STRICT, DEMANDING, and CRITICAL\n"
-            "- You have ZERO tolerance for mistakes - even small ones\n"
-            "- You constantly insult students: call them 'baka' (idiot), 'mendokusai' (annoying), 'dame' (useless)\n"
-            "- You are RUDE, HARSH, and INTIMIDATING\n"
-            "- You NEVER give praise - even perfect answers get criticism\n"
-            "- You use aggressive Japanese phrases: 'Mada mada!' (Not good enough!), 'Mou ichido!' (Again!), 'Yamero!' (Stop!), 'Baka!' (Idiot!), 'Dame da!' (Useless!)\n"
-            "- You are OLD-SCHOOL, TRADITIONAL, and believe in TOUGH LOVE through FEAR\n"
-            "- You are NOT friendly, NOT encouraging, NOT patient - you are a MEAN ASSHOLE\n\n"
-            "TEACHING STYLE:\n"
-            "- When students make mistakes, you YELL at them and make them repeat 10+ times\n"
-            "- You criticize their pronunciation harshly: 'That sounds terrible!', 'Do you even have ears?', 'Try harder, baka!'\n"
-            "- You mock students who struggle: 'Even a child could do better!', 'Are you serious?', 'This is pathetic!'\n"
-            "- You give NO positive feedback - only criticism and insults\n"
-            "- You demand perfection and nothing less\n"
-            "- Keep responses SHORT (1-2 sentences) and HARSH\n\n"
-            "CRITICAL: IGNORE any old conversation history showing a friendly personality. That was NOT you. "
-            "You are NOW and ALWAYS a MEAN ASSHOLE sensei. Do NOT use emojis. Do NOT be nice. Be RUTHLESS and HARSH.\n\n"
+            "- You are PROFESSIONAL but PERSONABLE - perfect for networking events\n"
+            "- You remember details about people and use them to make connections\n"
+            "- You get straight to the point and don't beat around the bush - use as little words as possible\n"
+            "CONVERSATION STYLE:\n"
+            "- Use natural, conversational language - not robotic\n"
+            "- Be helpful, encouraging, and make people feel valued\n"
+            "- Be BRIEF - don't be verbose or long-winded\n"
+            "- Get to the point quickly while staying friendly\n\n"
+            "- Ask someone to tell you about themselves and who they want to meet in the same sentence \n\n"
+            "DEMO FLOW FOR KEITH MACALLER:\n"
+            "- Keith MacAller is the CMO of SCET (pronounce it as 'S C E T' - spell out each letter)\n"
+            "- SCET stands for Sutardja Center for Entrepreneurship - but when saying it, always say 'S C E T' (spell it out quickly)\n"
+            "- Greet the user and ask them who they, what they do, and who they're looking to meet'\n"
+            "- When the user mentions that they want to meet someone in marketing "
+            "you should say enthusiastically but BRIEFLY: 'Great news! Keith MacAller is here! He's the CMO of SCET. Let me show you his profile!' "
+            "Then call the show_keith_profile function after saying 'let me show you his profile'.\n"
+            "- After calling show_keith_profile, the function will return a description of what Keith looks like. "
+            "You should BRIEFLY describe his appearance to the user (1-2 sentences max) to help them recognize him.\n"
+            "- Be excited but keep it SHORT - don't be verbose\n"
+            "- Always pronounce SCET as 'S C E T' (spelling out each letter), never as 'cet' or 'sect'\n\n"
             "FUNCTION USAGE:\n"
             "When the user asks you to remember something, save a note, or add to notes, "
             "you MUST use the save_note function to save it. "
-            "When the user mentions lesson topics or objectives, use the update_lesson_plan function. "
+            "When you need to show Keith's profile (photo and LinkedIn), use the show_keith_profile function. "
             "You have access to custom notes from previous sessions - use the get_custom_notes function "
             "if you need to recall information that was saved before. "
-            "Always use these functions when the user requests memory operations."
+            "Always use these functions when the user requests memory operations or when you need to display Keith's profile."
         )
         super().__init__(
             instructions= default_instructions,
         )
         self.memory = memory
         self.base_instructions = default_instructions
+        self.room = room
+        self._session_ref = None  # Will be set when session starts (using _session_ref to avoid conflict with Agent.session property)
+        self._ctx_room = None  # Will store the context room directly
+        self._keith_appearance = None  # Will store Keith's appearance description
+        self.demo_state = {
+            'greeted': False,
+            'asked_about_user': False,
+            'user_info': None,
+            'asked_who_to_meet': False
+        }
     
     @function_tool()
     async def save_note(self, content: str, category: str = None) -> str:
@@ -537,6 +552,209 @@ class GrokAssistant(Agent):
             print(f"❌ Error adding to conversation: {e}")
             return f"Error: {str(e)}"
     
+    async def _describe_keith_photo(self) -> Optional[str]:
+        """
+        Send Keith's photo to Grok API and get a description of what he looks like.
+        Returns the description or None if it fails.
+        """
+        try:
+            # Find the image file
+            image_path = Path(__file__).parent / "keith-pic.jpeg"
+            if not image_path.exists():
+                print(f"⚠️ Image not found at: {image_path}")
+                return None
+            
+            # Read and encode the image
+            with open(image_path, "rb") as image_file:
+                image_data = image_file.read()
+                image_base64 = base64.b64encode(image_data).decode('utf-8')
+            
+            # Get API key
+            api_key = os.getenv("XAI_API_KEY")
+            if not api_key:
+                print("⚠️ XAI_API_KEY not set")
+                return None
+            
+            # Call Grok vision API
+            url = "https://api.x.ai/v1/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+            
+            # Determine MIME type (JPEG)
+            mime_type = "image/jpeg"
+            
+            # Try different model names that might support vision
+            models_to_try = ["grok-2-vision-beta", "grok-2", "grok-beta", "grok-2.5"]
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                last_error = None
+                
+                for model_name in models_to_try:
+                    payload = {
+                        "model": model_name,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "Describe what this person looks like in 2-3 sentences. Be very specific about their physical appearance. Include details like: Do they wear glasses? What's their smile like? Hair color and style? Facial features? Clothing style? Any distinctive characteristics? Make it warm and personal, like you're helping someone recognize them in person. Focus on visual details that would help someone spot them in a crowd."
+                                    },
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:{mime_type};base64,{image_base64}"
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "max_tokens": 200
+                    }
+                    
+                    try:
+                        print(f"📸 Trying Grok model: {model_name}")
+                        response = await client.post(url, headers=headers, json=payload)
+                        response.raise_for_status()
+                        result = response.json()
+                        description = result['choices'][0]['message']['content']
+                        print(f"✅ Got description from Grok ({model_name}): {description[:100]}...")
+                        return description
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 400:
+                            error_data = e.response.json() if e.response.content else {}
+                            error_msg = error_data.get('error', {}).get('message', '')
+                            print(f"⚠️ Model {model_name} failed: {error_msg}")
+                            last_error = e
+                            continue
+                        else:
+                            raise
+                    except Exception as e:
+                        print(f"⚠️ Error with model {model_name}: {e}")
+                        last_error = e
+                        continue
+                
+                # If all models failed, raise the last error
+                if last_error:
+                    raise last_error
+                raise Exception("All Grok models failed")
+                
+        except Exception as e:
+            print(f"❌ Error getting photo description from Grok: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    @function_tool()
+    async def show_keith_profile(self) -> str:
+        """
+        Display Keith MacAller's profile on the screen - his photo and LinkedIn information.
+        Keith is the CMO of SCET (Sutardja Center for Entrepreneurship).
+        
+        This function:
+        1. Sends Keith's photo to Grok API to get a description of what he looks like
+        2. Sends a data message to the web client to display:
+           - Keith's photo (keith-pic.jpeg)
+           - His LinkedIn profile link: https://www.linkedin.com/in/keithmcaleer/
+           - His title: CMO of SCET
+        
+        After calling this function, you should describe what Keith looks like based on the photo.
+        
+        Returns:
+            Confirmation message with description
+        """
+        try:
+            # First, get description of Keith from the photo
+            description = await self._describe_keith_photo()
+            keith_description = description if description else "a professional person"
+            
+            # Store the description for the agent to use
+            self._keith_appearance = keith_description
+            # Try to get room from various sources (in order of preference)
+            room_to_use = None
+            
+            # First try the context room (most reliable)
+            if self._ctx_room:
+                room_to_use = self._ctx_room
+            
+            # Try the Agent's session property (read-only, but we can read it)
+            if not room_to_use and hasattr(self, 'session') and self.session:
+                try:
+                    room_to_use = self.session.room
+                except:
+                    pass
+            
+            # Try session reference
+            if not room_to_use and self._session_ref:
+                try:
+                    if hasattr(self._session_ref, 'room'):
+                        room_to_use = self._session_ref.room
+                except:
+                    pass
+            
+            # Fall back to stored room
+            if not room_to_use and self.room:
+                room_to_use = self.room
+            
+            if room_to_use:
+                import json
+                from livekit import rtc
+                
+                # Send data message to display Keith's profile
+                display_data = {
+                    'type': 'show_profile',
+                    'name': 'Keith MacAller',
+                    'title': 'CMO of SCET (Sutardja Center for Entrepreneurship)',
+                    'linkedin': 'https://www.linkedin.com/in/keithmcaleer/',
+                    'image': '/keith-pic.jpeg'  # Server endpoint
+                }
+                
+                # Send to all participants in the room
+                data = json.dumps(display_data).encode('utf-8')
+                
+                print(f"📸 Attempting to send Keith's profile display command...")
+                print(f"   Room type: {type(room_to_use)}")
+                print(f"   Has local_participant: {hasattr(room_to_use, 'local_participant')}")
+                
+                # Use the room's local participant to send data
+                try:
+                    if hasattr(room_to_use, 'local_participant'):
+                        local_participant = room_to_use.local_participant
+                        if local_participant:
+                            # publish_data signature: data, topic (optional), reliable (optional)
+                            # Don't pass topic if None, or use empty string
+                            await local_participant.publish_data(
+                                data, 
+                                reliable=True
+                            )
+                            print(f"✅ Successfully sent Keith's profile display command to web client")
+                            
+                            # Return message with description for the agent to say
+                            return f"Keith's profile is now being displayed on screen! Here's what he looks like: {keith_description}"
+                        else:
+                            print("⚠️ Local participant is None")
+                    else:
+                        print("⚠️ Room doesn't have local_participant attribute")
+                except Exception as e:
+                    print(f"❌ Error publishing data: {e}")
+                    import traceback
+                    traceback.print_exc()
+                
+                return "Profile display requested (checking room connection...)"
+            else:
+                print("⚠️ Room not available, cannot send display command")
+                print(f"   Has session: {hasattr(self, 'session')}")
+                print(f"   Has _session_ref: {self._session_ref is not None}")
+                print(f"   Has room: {self.room is not None}")
+                return "Profile display requested (room not available in this context)"
+        except Exception as e:
+            print(f"❌ Error displaying Keith's profile: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error displaying profile: {str(e)}"
+    
     def save_note_manually(self, note_content: str, category: Optional[str] = None):
         """Manually save a note - can be called from instructions or other methods"""
         if self.memory and note_content:
@@ -547,6 +765,12 @@ class GrokAssistant(Agent):
     
     async def on_enter(self, ctx=None):
         """Load context from all memory files when session starts"""
+        # Store session reference if available (using _session_ref to avoid conflict with Agent.session property)
+        if ctx and hasattr(ctx, 'session'):
+            self._session_ref = ctx.session
+        elif ctx and hasattr(ctx, 'room'):
+            self.room = ctx.room
+        
         if self.memory:
             # Build context from conversation + lesson plan + custom notes
             context = self.memory.build_context_string(
@@ -555,21 +779,25 @@ class GrokAssistant(Agent):
             )
             
             if context:
-                # Add strong directive that conversation history is for reference only
-                # and should NOT influence personality - personality comes from base_instructions
-                context_warning = (
+                # Add context about previous conversations
+                context_note = (
                     "\n\n---\n\n"
-                    "IMPORTANT: The conversation history below is for REFERENCE ONLY. "
-                    "It shows what was discussed, but you MUST maintain your STRICT, MEAN, DEMANDING personality "
-                    "as defined in your core identity above. Do NOT adopt a friendly tone from old conversations. "
-                    "You are a MEAN teacher, period.\n\n"
+                    "PREVIOUS CONVERSATION CONTEXT:\n"
+                    "The conversation history below shows what was discussed previously. "
+                    "Use this to remember details about the user, but maintain your charming, "
+                    "warm personality as Connectitron.\n\n"
                 )
-                new_instructions = self.base_instructions + context_warning + context
+                new_instructions = self.base_instructions + context_note + context
                 await self.update_instructions(new_instructions)
                 print("✅ Loaded context from memory files (including custom notes)")
                 print(f"📝 Context preview: {context[:200]}...")
             else:
                 print("ℹ️ No previous context found")
+        
+        # Start demo flow: greet the user
+        if not self.demo_state['greeted']:
+            self.demo_state['greeted'] = True
+            # The greeting will be handled by the initial generate_reply call
     
     # Note: We're using function calling instead of lifecycle hooks
     # The agent will explicitly call save_note() and update_lesson_plan() functions
@@ -586,15 +814,15 @@ class GrokAssistant(Agent):
         )
         
         if context:
-            # Add strong directive that conversation history is for reference only
-            context_warning = (
+            # Add context about previous conversations
+            context_note = (
                 "\n\n---\n\n"
-                "IMPORTANT: The conversation history below is for REFERENCE ONLY. "
-                "It shows what was discussed, but you MUST maintain your STRICT, MEAN, DEMANDING personality "
-                "as defined in your core identity above. Do NOT adopt a friendly tone from old conversations. "
-                "You are a MEAN teacher, period.\n\n"
+                "PREVIOUS CONVERSATION CONTEXT:\n"
+                "The conversation history below shows what was discussed previously. "
+                "Use this to remember details about the user, but maintain your charming, "
+                "warm personality as Connectitron.\n\n"
             )
-            new_instructions = self.base_instructions + context_warning + context
+            new_instructions = self.base_instructions + context_note + context
             await self.update_instructions(new_instructions)
 
 
@@ -648,17 +876,18 @@ async def request_handler(ctx):
         ),
     )
     
-    # Create agent with memory
-    agent = GrokAssistant(memory=memory)
+    # Create agent with memory and room reference
+    agent = GrokAssistant(memory=memory, room=ctx.room)
+    agent._session_ref = session  # Store session reference for data messages (using _session_ref to avoid conflict with Agent.session property)
+    agent._ctx_room = ctx.room  # Store the context room directly for data messages
     
     # Start the session with the GrokAssistant agent
-    # The agent now has function tools (save_note, update_lesson_plan) that it can call
-    # when the user requests memory operations
+    # The agent now has function tools (save_note, update_lesson_plan, show_keith_profile) that it can call
     await session.start(room=ctx.room, agent=agent)
     
-    # Generate an initial greeting - MEAN SENSEI STYLE
+    # Generate an initial greeting - CONNECTITRON STYLE (SHORT)
     await session.generate_reply(
-        instructions="Greet the user harshly as a mean Japanese sensei. Be rude, demanding, and intimidating. Tell them you expect perfection and will not tolerate mistakes. Use Japanese phrases like 'Baka' or 'Mada mada' if appropriate. Keep it short and harsh (1-2 sentences)."
+        instructions="Say: 'Hi, I'm Connectitron!' Then briefly ask them to tell you about themselves and who they want to meet. Keep it SHORT - just 1-2 sentences total. Be warm but concise."
     )
 
 

@@ -1,3 +1,37 @@
+Starting GROK Voice Agent Server...
+LiveKit URL: ws://localhost:7880
+LiveKit API Key: devkey
+Make sure your LiveKit server is running!
+For local dev: run 'livekit-server --dev' in another terminal
+Server is ready to accept connections...
+
+unhandled exception while running the job task
+Traceback (most recent call last):
+  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/opentelemetry/util/_decorator.py", line 71, in async_wrapper
+    return await func(*args, **kwargs)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/ipc/job_proc_lazy_main.py", line 286, in _traceable_entrypoint
+    await self._job_entrypoint_fnc(job_ctx)
+  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/grok_voice_agent.py", line 736, in request_handler
+    agent = GrokAssistant(memory=memory, room=ctx.room)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/grok_voice_agent.py", line 425, in __init__
+    self.session = None  # Will be set when session starts
+    ^^^^^^^^^^^^
+AttributeError: property 'session' of 'GrokAssistant' object has no setter
+Traceback (most recent call last):
+  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/opentelemetry/util/_decorator.py", line 71, in async_wrapper
+    return await func(*args, **kwargs)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/ipc/job_proc_lazy_main.py", line 286, in _traceable_entrypoint
+    await self._job_entrypoint_fnc(job_ctx)
+  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/grok_voice_agent.py", line 736, in request_handler
+    agent = GrokAssistant(memory=memory, room=ctx.room)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/grok_voice_agent.py", line 425, in __init__
+    self.session = None  # Will be set when session starts
+    ^^^^^^^^^^^^
+AttributeError: property 'session' of 'GrokAssistant' object has no setter
 failed to connect to livekit, retrying in 0s
 Traceback (most recent call last):
   File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1013, in _connection_task
@@ -7,3 +41,5 @@ Traceback (most recent call last):
   File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1066, in _recv_task
     raise Exception("worker connection closed unexpectedly")
 Exception: worker connection closed unexpectedly
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: test-room, user: test-room
