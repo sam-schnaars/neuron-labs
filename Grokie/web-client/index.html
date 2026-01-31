@@ -182,7 +182,23 @@
       .profile-title {
         font-size: 18px;
         color: rgba(255, 255, 255, 0.8);
+        margin-bottom: 12px;
+      }
+      
+      .profile-description {
+        font-size: 15px;
+        color: rgba(255, 255, 255, 0.85);
+        margin-bottom: 12px;
+        line-height: 1.4;
+        text-align: center;
+        max-width: 100%;
+      }
+      
+      .profile-want-to-meet {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.75);
         margin-bottom: 20px;
+        font-style: italic;
       }
       
       .profile-linkedin {
@@ -209,6 +225,58 @@
       .profile-linkedin::before {
         content: "🔗";
         font-size: 20px;
+      }
+      
+      /* Attendee list (full list with suggested first) */
+      .attendee-list-container {
+        position: fixed;
+        top: 50%;
+        right: 20px;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(16px);
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        border-radius: 16px;
+        padding: 16px;
+        max-width: 220px;
+        max-height: 70vh;
+        overflow-y: auto;
+        z-index: 1999;
+        display: none;
+      }
+      .attendee-list-container.visible {
+        display: block;
+      }
+      .attendee-list-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+        margin-bottom: 12px;
+      }
+      .attendee-list {
+        list-style: none;
+      }
+      .attendee-list-item {
+        padding: 10px 12px;
+        margin-bottom: 6px;
+        border-radius: 10px;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+      .attendee-list-item.suggested {
+        background: rgba(76, 175, 80, 0.25);
+        border-color: rgba(76, 175, 80, 0.5);
+        font-weight: 600;
+      }
+      .attendee-list-item:not(.suggested):hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .attendee-list-item-badge {
+        font-size: 10px;
+        color: rgba(76, 175, 80, 0.95);
+        margin-left: 6px;
       }
     </style>
   </head>
@@ -237,7 +305,15 @@
       <img class="profile-image" id="profileImage" src="" alt="Profile" />
       <div class="profile-name" id="profileName"></div>
       <div class="profile-title" id="profileTitle"></div>
+      <div class="profile-description" id="profileDescription"></div>
+      <div class="profile-want-to-meet" id="profileWantToMeet"></div>
       <a class="profile-linkedin" id="profileLinkedIn" href="#" target="_blank">View LinkedIn Profile</a>
+    </div>
+    
+    <!-- Attendee list (shown with suggested first when user asks who they can meet) -->
+    <div class="attendee-list-container" id="attendeeListContainer">
+      <div class="attendee-list-title" id="attendeeListTitle">People here</div>
+      <ul class="attendee-list" id="attendeeList"></ul>
     </div>
     
     <!-- Bottom Controls -->

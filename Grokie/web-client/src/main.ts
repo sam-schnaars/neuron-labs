@@ -30,7 +30,11 @@ const profileContainer = document.getElementById('profileContainer') as HTMLElem
 const profileImage = document.getElementById('profileImage') as HTMLImageElement;
 const profileName = document.getElementById('profileName') as HTMLElement;
 const profileTitle = document.getElementById('profileTitle') as HTMLElement;
+const profileDescription = document.getElementById('profileDescription') as HTMLElement;
+const profileWantToMeet = document.getElementById('profileWantToMeet') as HTMLElement;
 const profileLinkedIn = document.getElementById('profileLinkedIn') as HTMLAnchorElement;
+const attendeeListContainer = document.getElementById('attendeeListContainer') as HTMLElement;
+const attendeeList = document.getElementById('attendeeList') as HTMLUListElement;
 
 // API base URL
 const tokenServerUrl = import.meta.env.VITE_TOKEN_SERVER_URL || '/api';
@@ -276,7 +280,11 @@ async function connect() {
         
         if (data.type === 'show_profile') {
           console.log('🎯 Showing profile for:', data.name);
+          hideAttendeeList();
           showProfile(data);
+        } else if (data.type === 'show_attendee_list') {
+          console.log('📋 Showing attendee list');
+          showAttendeeList(data);
         } else {
           console.log('⚠️ Unknown data message type:', data.type);
         }
@@ -343,6 +351,8 @@ function showProfile(profileData: {
   title: string;
   linkedin: string;
   image: string;
+  description?: string;
+  who_they_want_to_meet?: string;
 }) {
   console.log('🖼️ showProfile called with:', profileData);
   
@@ -355,53 +365,49 @@ function showProfile(profileData: {
   
   // Set profile data
   profileName.textContent = profileData.name;
-  profileTitle.textContent = profileData.title;
-  profileLinkedIn.href = profileData.linkedin;
-  console.log('✅ Set profile text data');
+  profileTitle.textContent = profileData.title ?? '';
+  profileLinkedIn.href = profileData.linkedin || '#';
   
-  // Load image - try multiple paths
-  const imagePaths = [
-    profileData.image,
-    `/keith-pic.jpeg`,  // Direct server endpoint
-    `http://localhost:8080/keith-pic.jpeg`,  // Server endpoint with port
-    `../${profileData.image}`,
-    `../../${profileData.image}`,
-    `./${profileData.image}`,
-  ];
+  // Who they are (description) and who they want to meet — show when present
+  const desc = profileData.description?.trim() ?? '';
+  const wantToMeet = profileData.who_they_want_to_meet?.trim() ?? '';
+  profileDescription.textContent = desc;
+  profileWantToMeet.textContent = wantToMeet ? `Looking to meet: ${wantToMeet}` : '';
+  profileDescription.style.display = desc ? 'block' : 'none';
+  profileWantToMeet.style.display = wantToMeet ? 'block' : 'none';
   
-  // Try to load image from various paths
-  const tryLoadImage = (pathIndex: number) => {
-    if (pathIndex >= imagePaths.length) {
-      console.warn('Could not load profile image from any path');
-      profileImage.style.display = 'none';
-      return;
-    }
-    
-    const img = new Image();
-    img.onload = () => {
-      profileImage.src = img.src;
-      profileImage.style.display = 'block';
-      console.log('✅ Profile image loaded from:', img.src);
+  // Load image - try multiple paths when we have an image URL; otherwise hide
+  const imageUrl = profileData.image?.trim();
+  if (imageUrl) {
+    const imagePaths = [
+      imageUrl,
+      `/keith-pic.jpeg`,
+      `http://localhost:8080/keith-pic.jpeg`,
+      `../${imageUrl}`,
+      `../../${imageUrl}`,
+      `./${imageUrl}`,
+    ];
+    const tryLoadImage = (pathIndex: number) => {
+      if (pathIndex >= imagePaths.length) {
+        profileImage.style.display = 'none';
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        profileImage.src = img.src;
+        profileImage.style.display = 'block';
+      };
+      img.onerror = () => tryLoadImage(pathIndex + 1);
+      img.src = imagePaths[pathIndex];
     };
-    img.onerror = () => {
-      console.warn('❌ Failed to load image from:', imagePaths[pathIndex]);
-      tryLoadImage(pathIndex + 1);
-    };
-    console.log(`🖼️ Trying to load image from: ${imagePaths[pathIndex]}`);
-    img.src = imagePaths[pathIndex];
-  };
-  
-  tryLoadImage(0);
+    tryLoadImage(0);
+  } else {
+    profileImage.style.display = 'none';
+  }
   
   // Show profile container
   profileContainer.classList.add('visible');
   console.log('✅ Profile container made visible');
-  console.log('📋 Final profile data:', {
-    name: profileName.textContent,
-    title: profileTitle.textContent,
-    linkedin: profileLinkedIn.href,
-    imageSrc: profileImage.src
-  });
 }
 
 function hideProfile() {
@@ -412,6 +418,73 @@ function hideProfile() {
   if (faceWrapper) {
     faceWrapper.style.display = 'flex';
   }
+}
+
+// ========== ATTENDEE LIST (full list with suggested first) ==========
+
+type AttendeeItem = {
+  name: string;
+  title: string;
+  linkedin: string;
+  image: string;
+  description?: string;
+  who_they_want_to_meet?: string;
+  email?: string;
+};
+
+function showAttendeeList(data: { attendees: AttendeeItem[]; suggested_first: number }) {
+  const { attendees = [], suggested_first = 0 } = data;
+  if (attendees.length === 0) return;
+
+  // Hide face, show profile + list
+  const faceWrapper = document.querySelector('.face-wrapper') as HTMLElement;
+  if (faceWrapper) faceWrapper.style.display = 'none';
+
+  // Build list DOM: full list with suggested first (order is already from server)
+  attendeeList.innerHTML = '';
+  attendees.forEach((a, i) => {
+    const li = document.createElement('li');
+    li.className = 'attendee-list-item' + (i === suggested_first ? ' suggested' : '');
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = a.name || '?';
+    li.appendChild(nameSpan);
+    if (i === suggested_first) {
+      const badge = document.createElement('span');
+      badge.className = 'attendee-list-item-badge';
+      badge.textContent = 'Suggested';
+      li.appendChild(badge);
+    }
+    li.addEventListener('click', () => {
+      showProfile({
+        name: a.name,
+        title: a.title ?? '',
+        linkedin: a.linkedin ?? '',
+        image: a.image ?? '',
+        description: a.description,
+        who_they_want_to_meet: a.who_they_want_to_meet,
+      });
+    });
+    attendeeList.appendChild(li);
+  });
+
+  attendeeListContainer.classList.add('visible');
+
+  // Show suggested person's profile in the main card
+  const suggested = attendees[suggested_first];
+  if (suggested) {
+    showProfile({
+      name: suggested.name,
+      title: suggested.title ?? '',
+      linkedin: suggested.linkedin ?? '',
+      image: suggested.image ?? '',
+      description: suggested.description,
+      who_they_want_to_meet: suggested.who_they_want_to_meet,
+    });
+  }
+}
+
+function hideAttendeeList() {
+  attendeeListContainer.classList.remove('visible');
 }
 
 // ========== AGENT TOGGLE ==========
