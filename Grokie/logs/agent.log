@@ -1,45 +1,46 @@
 Starting GROK Voice Agent Server...
 LiveKit URL: ws://localhost:7880
 LiveKit API Key: devkey
-Make sure your LiveKit server is running!
-For local dev: run 'livekit-server --dev' in another terminal
+
+  >>> LiveKit SERVER must be running first, or connections will fail.
+  >>> Easiest: from Grokie/ run:  ./run-all.sh
+  >>> Or in another terminal:     livekit-server --dev
+
 Server is ready to accept connections...
 
-unhandled exception while running the job task
-Traceback (most recent call last):
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/opentelemetry/util/_decorator.py", line 71, in async_wrapper
-    return await func(*args, **kwargs)  # type: ignore
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/ipc/job_proc_lazy_main.py", line 286, in _traceable_entrypoint
-    await self._job_entrypoint_fnc(job_ctx)
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/grok_voice_agent.py", line 736, in request_handler
-    agent = GrokAssistant(memory=memory, room=ctx.room)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/grok_voice_agent.py", line 425, in __init__
-    self.session = None  # Will be set when session starts
-    ^^^^^^^^^^^^
-AttributeError: property 'session' of 'GrokAssistant' object has no setter
-Traceback (most recent call last):
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/opentelemetry/util/_decorator.py", line 71, in async_wrapper
-    return await func(*args, **kwargs)  # type: ignore
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/ipc/job_proc_lazy_main.py", line 286, in _traceable_entrypoint
-    await self._job_entrypoint_fnc(job_ctx)
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/grok_voice_agent.py", line 736, in request_handler
-    agent = GrokAssistant(memory=memory, room=ctx.room)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/grok_voice_agent.py", line 425, in __init__
-    self.session = None  # Will be set when session starts
-    ^^^^^^^^^^^^
-AttributeError: property 'session' of 'GrokAssistant' object has no setter
-failed to connect to livekit, retrying in 0s
-Traceback (most recent call last):
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1013, in _connection_task
-    await self._run_ws(ws)
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1094, in _run_ws
-    await asyncio.gather(*tasks)
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1066, in _recv_task
-    raise Exception("worker connection closed unexpectedly")
-Exception: worker connection closed unexpectedly
 📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: test-room, user: test-room
+📁 Memory initialized for room: investobot-1769905632807-unaj2jh, user: investobot-1769905632807-unaj2jh
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
+
+*No lesson plan yet. Start a lesson to create a plan.*
+...
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: investobot-1769905646140-j8fagbv, user: investobot-1769905646140-j8fagbv
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
+
+*No lesson plan yet. Start a lesson to create a plan.*
+...
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: investobot-1769905667640-dqaiiwj, user: investobot-1769905667640-dqaiiwj
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
+
+*No lesson plan yet. Start a lesson to create a plan.*
+...
+failed to insert item `0d336615-fcce-4254-aec7-8d96241c506c`: Item with ID 0d336615-fcce-4254-aec7-8d96241c506c already exists.
+failed to insert item `cd402643-2356-486e-b15c-36e1af246289`: Item with ID cd402643-2356-486e-b15c-36e1af246289 already exists.
+failed to insert item `11e2e997-7311-476a-8059-c534cd008ef0`: Item with ID 11e2e997-7311-476a-8059-c534cd008ef0 already exists.
+failed to insert item `11e2e997-7311-476a-8059-c534cd008ef0`: Item with ID 11e2e997-7311-476a-8059-c534cd008ef0 already exists.
+failed to insert item `960d634a-cb36-43eb-b7ca-498b0e8ebbf7`: Item with ID 960d634a-cb36-43eb-b7ca-498b0e8ebbf7 already exists.
+failed to insert item `960d634a-cb36-43eb-b7ca-498b0e8ebbf7`: Item with ID 960d634a-cb36-43eb-b7ca-498b0e8ebbf7 already exists.
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: investobot-1769906103773-87haukb, user: investobot-1769906103773-87haukb
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
+
+*No lesson plan yet. Start a lesson to create a plan.*
+...
+📄 Saved pitch transcript to conversation_memory/investobot-1769906103773-87haukb/investobot-1769906103773-87haukb/pitches/pitch_2026-01-31_16-37-26.md
+📄 Function called: save_pitch_transcript -> pitch_2026-01-31_16-37-26.md

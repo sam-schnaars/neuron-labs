@@ -1,4 +1,4 @@
-import { Room, RoomEvent, RemoteParticipant, LocalAudioTrack, RemoteAudioTrack, createLocalAudioTrack } from 'livekit-client';
+import { Room, RoomEvent, RemoteAudioTrack, LocalAudioTrack, createLocalAudioTrack } from 'livekit-client';
 
 // Configuration
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'ws://localhost:7880';
@@ -14,10 +14,15 @@ let remoteAudioSource: MediaStreamAudioSourceNode | null = null;
 
 // Agent state
 let isAgentEnabled = false;
+let isConnecting = false;
+let isDisconnecting = false;
 
-// Default values
-const DEFAULT_ROOM = 'test-room';
+// Default values - use unique room per connection so agent is dispatched every time (room_config is applied when room is created)
 const DEFAULT_NAME = 'User';
+
+function getRoomName(): string {
+  return `investobot-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 // Get DOM elements
 const toggleGrokieBtn = document.getElementById('toggleGrokieBtn') as HTMLButtonElement;
@@ -26,15 +31,6 @@ const faceCircle = document.getElementById('faceCircle') as SVGCircleElement;
 const leftEye = document.getElementById('leftEye') as SVGEllipseElement;
 const rightEye = document.getElementById('rightEye') as SVGEllipseElement;
 const mouth = document.getElementById('mouth') as SVGEllipseElement;
-const profileContainer = document.getElementById('profileContainer') as HTMLElement;
-const profileImage = document.getElementById('profileImage') as HTMLImageElement;
-const profileName = document.getElementById('profileName') as HTMLElement;
-const profileTitle = document.getElementById('profileTitle') as HTMLElement;
-const profileDescription = document.getElementById('profileDescription') as HTMLElement;
-const profileWantToMeet = document.getElementById('profileWantToMeet') as HTMLElement;
-const profileLinkedIn = document.getElementById('profileLinkedIn') as HTMLAnchorElement;
-const attendeeListContainer = document.getElementById('attendeeListContainer') as HTMLElement;
-const attendeeList = document.getElementById('attendeeList') as HTMLUListElement;
 
 // API base URL
 const tokenServerUrl = import.meta.env.VITE_TOKEN_SERVER_URL || '/api';
@@ -106,7 +102,6 @@ function startAudioAnalysis(audioElement: HTMLAudioElement) {
     remoteAudioSource = source;
   } catch (error) {
     console.error('Error creating audio source:', error);
-    // Fallback: try to analyze the audio element directly
     if (audioElement.captureStream) {
       const stream = audioElement.captureStream();
       const source = audioContext.createMediaStreamSource(stream);
@@ -124,14 +119,12 @@ function startAudioAnalysis(audioElement: HTMLAudioElement) {
     
     analyser.getByteFrequencyData(dataArray);
     
-    // Calculate average audio level
     let sum = 0;
     for (let i = 0; i < dataArray.length; i++) {
       sum += dataArray[i];
     }
     const average = sum / dataArray.length;
     
-    // Animate face
     animateFace(average);
     
     animationFrameId = requestAnimationFrame(analyzeAudio);
@@ -181,40 +174,52 @@ async function requestMicrophonePermission(): Promise<MediaStream> {
 }
 
 async function connect() {
-  try {
-    updateStatus('Connecting...', false);
-    
-    // Request microphone permission
-    const stream = await requestMicrophonePermission();
-    stream.getTracks().forEach(track => track.stop());
+  if (isConnecting || isAgentEnabled) return;
+  isConnecting = true;
+  toggleGrokieBtn.disabled = true;
 
-    // Create room instance
-    room = new Room({
+  try {
+    if (room) {
+      await disconnect();
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    updateStatus('Connecting...', false);
+
+    const stream = await requestMicrophonePermission();
+    stream.getTracks().forEach((track) => track.stop());
+
+    const newRoom = new Room({
       adaptiveStream: true,
       dynacast: true,
     });
+    room = newRoom;
 
-    // Set up event handlers
-    room.on(RoomEvent.Connected, async () => {
-      console.log('Connected to room:', DEFAULT_ROOM);
+    newRoom.on(RoomEvent.Connected, async () => {
+      console.log('Connected to room:', newRoom.name);
+      if (room !== newRoom) return;
       updateStatus('Connected', true);
       
-      // Create and publish microphone track
       try {
         localAudioTrack = await createLocalAudioTrack();
-        await room!.localParticipant.publishTrack(localAudioTrack);
+        if (room !== newRoom) {
+          localAudioTrack?.stop();
+          localAudioTrack = null;
+          return;
+        }
+        await newRoom.localParticipant.publishTrack(localAudioTrack!);
         console.log('Microphone track published');
       } catch (error) {
         console.error('Error publishing microphone:', error);
       }
     });
 
-    room.on(RoomEvent.Disconnected, () => {
+    newRoom.on(RoomEvent.Disconnected, () => {
+      if (room !== newRoom) return;
       console.log('Disconnected from room');
       updateStatus('Disconnected', false);
       localAudioTrack = null;
       
-      // Stop audio analysis
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
@@ -226,102 +231,56 @@ async function connect() {
         remoteAudioSource = null;
       }
       
-      // Reset face to neutral
       faceCircle.style.transform = 'scale(1)';
       mouth.setAttribute('ry', '8');
       mouth.setAttribute('rx', '20');
       mouth.classList.remove('speaking');
     });
 
-    room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-      console.log('Participant connected:', participant.identity);
-      
-      participant.on('trackSubscribed', (track) => {
-        if (track.kind === 'audio' && track instanceof RemoteAudioTrack) {
-          const audioElement = track.attach() as HTMLAudioElement;
-          audioElement.style.display = 'none'; // Hide audio element
-          document.body.appendChild(audioElement);
-          audioElement.play().catch(console.error);
-          
-          // Start analyzing audio for face animation
-          audioElement.addEventListener('playing', () => {
-            startAudioAnalysis(audioElement);
-          });
-        }
-      });
-    });
-
-    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-      if (track.kind === 'audio' && participant !== room?.localParticipant && track instanceof RemoteAudioTrack) {
+    newRoom.on(RoomEvent.TrackSubscribed, (track, _publication) => {
+      if (track.kind === 'audio' && track instanceof RemoteAudioTrack) {
         const audioElement = track.attach() as HTMLAudioElement;
-        audioElement.style.display = 'none'; // Hide audio element
+        audioElement.style.display = 'none';
         document.body.appendChild(audioElement);
         audioElement.play().catch(console.error);
         
-        // Start analyzing audio for face animation
         audioElement.addEventListener('playing', () => {
           startAudioAnalysis(audioElement);
         });
       }
     });
 
-    // Listen for data messages from the agent
-    room.on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
-      console.log('📨 Data message received!', {
-        participant: participant?.identity,
-        kind,
-        topic,
-        payloadLength: payload.length
-      });
-      
-      try {
-        const data = JSON.parse(new TextDecoder().decode(payload));
-        console.log('✅ Parsed data message:', data);
-        
-        if (data.type === 'show_profile') {
-          console.log('🎯 Showing profile for:', data.name);
-          hideAttendeeList();
-          showProfile(data);
-        } else if (data.type === 'show_attendee_list') {
-          console.log('📋 Showing attendee list');
-          showAttendeeList(data);
-        } else {
-          console.log('⚠️ Unknown data message type:', data.type);
-        }
-      } catch (error) {
-        console.error('❌ Error parsing data message:', error);
-        console.error('Raw payload:', payload);
-      }
-    });
-
-    // Generate token and connect
-    const token = await generateToken(DEFAULT_ROOM, DEFAULT_NAME);
-    await room.connect(LIVEKIT_URL, token, {
+    const roomName = getRoomName();
+    const token = await generateToken(roomName, DEFAULT_NAME);
+    await newRoom.connect(LIVEKIT_URL, token, {
       autoSubscribe: true,
     });
-
   } catch (error) {
     console.error('Connection error:', error);
     updateStatus('Connection Failed', false);
     if (room) {
-      await disconnect();
+      try {
+        await disconnect();
+      } catch (e) {
+        console.error('Cleanup disconnect error:', e);
+      }
     }
     throw error;
+  } finally {
+    isConnecting = false;
+    toggleGrokieBtn.disabled = false;
   }
 }
 
 async function disconnect() {
-  if (localAudioTrack) {
-    localAudioTrack.stop();
-    localAudioTrack = null;
-  }
+  if (isDisconnecting) return;
+  isDisconnecting = true;
 
-  if (room) {
-    await room.disconnect();
-    room = null;
-  }
+  const roomToDisconnect = room;
+  const trackToStop = localAudioTrack;
+  room = null;
+  localAudioTrack = null;
 
-  // Stop audio analysis
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
@@ -333,175 +292,49 @@ async function disconnect() {
     remoteAudioSource = null;
   }
 
-  // Remove all audio elements
   document.querySelectorAll('audio').forEach(el => el.remove());
-  
-  // Reset face
   updateStatus('Disconnected', false);
   faceCircle.style.transform = 'scale(1)';
   mouth.setAttribute('ry', '8');
   mouth.setAttribute('rx', '20');
   mouth.classList.remove('speaking');
-}
 
-// ========== PROFILE DISPLAY ==========
-
-function showProfile(profileData: {
-  name: string;
-  title: string;
-  linkedin: string;
-  image: string;
-  description?: string;
-  who_they_want_to_meet?: string;
-}) {
-  console.log('🖼️ showProfile called with:', profileData);
-  
-  // Hide the face animation
-  const faceWrapper = document.querySelector('.face-wrapper') as HTMLElement;
-  if (faceWrapper) {
-    faceWrapper.style.display = 'none';
-    console.log('✅ Hidden face wrapper');
+  try {
+    if (trackToStop) trackToStop.stop();
+  } catch (e) {
+    console.error('Error stopping track:', e);
   }
-  
-  // Set profile data
-  profileName.textContent = profileData.name;
-  profileTitle.textContent = profileData.title ?? '';
-  profileLinkedIn.href = profileData.linkedin || '#';
-  
-  // Who they are (description) and who they want to meet — show when present
-  const desc = profileData.description?.trim() ?? '';
-  const wantToMeet = profileData.who_they_want_to_meet?.trim() ?? '';
-  profileDescription.textContent = desc;
-  profileWantToMeet.textContent = wantToMeet ? `Looking to meet: ${wantToMeet}` : '';
-  profileDescription.style.display = desc ? 'block' : 'none';
-  profileWantToMeet.style.display = wantToMeet ? 'block' : 'none';
-  
-  // Load image - try multiple paths when we have an image URL; otherwise hide
-  const imageUrl = profileData.image?.trim();
-  if (imageUrl) {
-    const imagePaths = [
-      imageUrl,
-      `/keith-pic.jpeg`,
-      `http://localhost:8080/keith-pic.jpeg`,
-      `../${imageUrl}`,
-      `../../${imageUrl}`,
-      `./${imageUrl}`,
-    ];
-    const tryLoadImage = (pathIndex: number) => {
-      if (pathIndex >= imagePaths.length) {
-        profileImage.style.display = 'none';
-        return;
-      }
-      const img = new Image();
-      img.onload = () => {
-        profileImage.src = img.src;
-        profileImage.style.display = 'block';
-      };
-      img.onerror = () => tryLoadImage(pathIndex + 1);
-      img.src = imagePaths[pathIndex];
-    };
-    tryLoadImage(0);
-  } else {
-    profileImage.style.display = 'none';
+  try {
+    if (roomToDisconnect) await roomToDisconnect.disconnect();
+  } catch (e) {
+    console.error('Error disconnecting room:', e);
+  } finally {
+    isDisconnecting = false;
   }
-  
-  // Show profile container
-  profileContainer.classList.add('visible');
-  console.log('✅ Profile container made visible');
-}
-
-function hideProfile() {
-  profileContainer.classList.remove('visible');
-  
-  // Show the face animation again
-  const faceWrapper = document.querySelector('.face-wrapper') as HTMLElement;
-  if (faceWrapper) {
-    faceWrapper.style.display = 'flex';
-  }
-}
-
-// ========== ATTENDEE LIST (full list with suggested first) ==========
-
-type AttendeeItem = {
-  name: string;
-  title: string;
-  linkedin: string;
-  image: string;
-  description?: string;
-  who_they_want_to_meet?: string;
-  email?: string;
-};
-
-function showAttendeeList(data: { attendees: AttendeeItem[]; suggested_first: number }) {
-  const { attendees = [], suggested_first = 0 } = data;
-  if (attendees.length === 0) return;
-
-  // Hide face, show profile + list
-  const faceWrapper = document.querySelector('.face-wrapper') as HTMLElement;
-  if (faceWrapper) faceWrapper.style.display = 'none';
-
-  // Build list DOM: full list with suggested first (order is already from server)
-  attendeeList.innerHTML = '';
-  attendees.forEach((a, i) => {
-    const li = document.createElement('li');
-    li.className = 'attendee-list-item' + (i === suggested_first ? ' suggested' : '');
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = a.name || '?';
-    li.appendChild(nameSpan);
-    if (i === suggested_first) {
-      const badge = document.createElement('span');
-      badge.className = 'attendee-list-item-badge';
-      badge.textContent = 'Suggested';
-      li.appendChild(badge);
-    }
-    li.addEventListener('click', () => {
-      showProfile({
-        name: a.name,
-        title: a.title ?? '',
-        linkedin: a.linkedin ?? '',
-        image: a.image ?? '',
-        description: a.description,
-        who_they_want_to_meet: a.who_they_want_to_meet,
-      });
-    });
-    attendeeList.appendChild(li);
-  });
-
-  attendeeListContainer.classList.add('visible');
-
-  // Show suggested person's profile in the main card
-  const suggested = attendees[suggested_first];
-  if (suggested) {
-    showProfile({
-      name: suggested.name,
-      title: suggested.title ?? '',
-      linkedin: suggested.linkedin ?? '',
-      image: suggested.image ?? '',
-      description: suggested.description,
-      who_they_want_to_meet: suggested.who_they_want_to_meet,
-    });
-  }
-}
-
-function hideAttendeeList() {
-  attendeeListContainer.classList.remove('visible');
 }
 
 // ========== AGENT TOGGLE ==========
 
 async function toggleGrokie() {
   if (isAgentEnabled) {
-    // Disable agent
-    await disconnect();
-    isAgentEnabled = false;
-    toggleGrokieBtn.textContent = 'turn grokie';
-    toggleGrokieBtn.classList.remove('active');
+    if (isConnecting) return;
+    toggleGrokieBtn.disabled = true;
+    try {
+      await disconnect();
+      await new Promise((r) => setTimeout(r, 400));
+    } catch (e) {
+      console.error('Disconnect error:', e);
+    } finally {
+      isAgentEnabled = false;
+      toggleGrokieBtn.textContent = 'Talk to Investobot';
+      toggleGrokieBtn.classList.remove('active');
+      toggleGrokieBtn.disabled = false;
+    }
   } else {
-    // Enable agent
     try {
       await connect();
       isAgentEnabled = true;
-      toggleGrokieBtn.textContent = 'turn ';
+      toggleGrokieBtn.textContent = 'End session';
       toggleGrokieBtn.classList.add('active');
     } catch (error) {
       console.error('Failed to connect:', error);
@@ -513,13 +346,10 @@ async function toggleGrokie() {
 
 // ========== INITIALIZATION ==========
 
-// Setup agent toggle
 toggleGrokieBtn.addEventListener('click', toggleGrokie);
 
-// Initialize status
 updateStatus('Disconnected', false);
 
-// Cleanup on page unload
 window.addEventListener('beforeunload', () => {
   if (room) {
     disconnect();

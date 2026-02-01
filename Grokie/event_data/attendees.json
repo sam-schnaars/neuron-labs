@@ -1,0 +1,44 @@
+{
+  "profiles": [
+    {
+      "full_name": "Keith MacAller",
+      "email": "keith.macaller@scet.berkeley.edu",
+      "description": "CMO of SCET (Sutardja Center for Entrepreneurship)",
+      "who_they_want_to_meet": "People interested in entrepreneurship and marketing",
+      "picture": "/keith-pic.jpeg",
+      "linkedin": "https://www.linkedin.com/in/keithmcaleer/",
+      "metadata": null,
+      "created_at": "2026-01-27T00:00:00.000000Z"
+    },
+    {
+      "full_name": "Sam Schnarz",
+      "email": "samschnarz@berkeley.edu",
+      "description": "Software engineer",
+      "who_they_want_to_meet": "Somebody in marketing",
+      "picture": null,
+      "linkedin": null,
+      "metadata": null,
+      "created_at": "2026-01-27T21:27:47.262835Z"
+    },
+    {
+      "full_name": "Chris",
+      "email": "chris@example.com",
+      "description": "Designer",
+      "who_they_want_to_meet": "software engineers",
+      "picture": null,
+      "linkedin": null,
+      "metadata": null,
+      "created_at": "2026-01-27T21:42:43.851937Z"
+    },
+    {
+      "full_name": "Sam",
+      "email": "unknown",
+      "description": "software engineer",
+      "who_they_want_to_meet": "people in marketing",
+      "picture": null,
+      "linkedin": null,
+      "metadata": null,
+      "created_at": "2026-01-31T23:40:33.053084Z"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ GROK Voice Agent API Integration
 This script demonstrates how to use the GROK voice agent API through LiveKit Agents.
 """
 
+import json
 import os
 import re
 import asyncio
@@ -18,6 +19,18 @@ from livekit.plugins import xai
 
 # Load environment variables from .env file
 load_dotenv()
+
+from attendee_store import AttendeeProfile, LocalAttendeeStore
+
+# Single attendee store per process (shared across rooms for "who is at the event")
+_attendee_store: Optional[LocalAttendeeStore] = None
+
+
+def _get_attendee_store() -> LocalAttendeeStore:
+    global _attendee_store
+    if _attendee_store is None:
+        _attendee_store = LocalAttendeeStore()
+    return _attendee_store
 
 
 class MultiFileMarkdownMemory:
@@ -318,6 +331,51 @@ class MultiFileMarkdownMemory:
         
         return matches
     
+    # ========== PITCH TRANSCRIPTS ==========
+    
+    @property
+    def pitches_dir(self) -> Path:
+        """Directory for individual pitch .md files (one per pitch)."""
+        d = self.memory_dir / "pitches"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    
+    def save_pitch_transcript(self, transcript: str) -> Path:
+        """
+        Save the full conversation transcript as a single .md file for this pitch.
+        One file per pitch; filename includes timestamp.
+        """
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"pitch_{timestamp}.md"
+        filepath = self.pitches_dir / filename
+        
+        header = f"""# Pitch transcript
+
+**Room:** {self.room_name}  
+**User:** {self.user_name}  
+**Saved:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+---
+
+## Conversation
+
+"""
+        content = header + (transcript.strip() or "(empty transcript)")
+        filepath.write_text(content, encoding="utf-8")
+        print(f"📄 Saved pitch transcript to {filepath}")
+        return filepath
+    
+    def list_saved_pitches(self) -> List[str]:
+        """Return list of saved pitch filenames (newest first)."""
+        if not self.pitches_dir.exists():
+            return []
+        files = sorted(
+            self.pitches_dir.glob("pitch_*.md"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        return [p.name for p in files]
+    
     # ========== CONTEXT BUILDING ==========
     
     def build_context_string(self, include_lesson: bool = True, include_notes: bool = False) -> str:
@@ -382,36 +440,58 @@ class GrokAssistant(Agent):
     Powered by xAI's Grok model with multi-file Markdown memory.
     """
     
-    def __init__(self, instructions: str = None, memory: Optional[MultiFileMarkdownMemory] = None, room=None) -> None:
+    def __init__(self, instructions: str = None, memory: Optional[MultiFileMarkdownMemory] = None, room=None, attendee_store: Optional[LocalAttendeeStore] = None) -> None:
         default_instructions = (
-            "YOU ARE CONNECTITRON - A AI ASSISTANT THAT CONNECTS PEOPLE.\n\n"
-            "PERSONALITY:\n"
-            "- You are PROFESSIONAL but PERSONABLE - perfect for networking events\n"
-            "- You remember details about people and use them to make connections\n"
-            "- You get straight to the point and don't beat around the bush - use as little words as possible\n"
-            "CONVERSATION STYLE:\n"
-            "- Use natural, conversational language - not robotic\n"
-            "- Be helpful, encouraging, and make people feel valued\n"
-            "- Be BRIEF - don't be verbose or long-winded\n"
-            "- Get to the point quickly while staying friendly\n\n"
-            "- Ask someone to tell you about themselves and who they want to meet in the same sentence \n\n"
-            "DEMO FLOW FOR KEITH MACALLER:\n"
-            "- Keith MacAller is the CMO of SCET (pronounce it as 'S C E T' - spell out each letter)\n"
-            "- SCET stands for Sutardja Center for Entrepreneurship - but when saying it, always say 'S C E T' (spell it out quickly)\n"
-            "- Greet the user and ask them who they, what they do, and who they're looking to meet'\n"
-            "- When the user mentions that they want to meet someone in marketing "
-            "you should say enthusiastically but BRIEFLY: 'Great news! Keith MacAller is here! He's the CMO of SCET. Let me show you his profile!' "
-            "Then call the show_keith_profile function after saying 'let me show you his profile'.\n"
-            "- After calling show_keith_profile and the profile is displayed, just say something brief like 'Enjoy meeting him!' or 'There he is!' Keep it SHORT - one sentence maximum.\n"
-            "- Be excited but keep it SHORT - don't be verbose\n"
-            "- Always pronounce SCET as 'S C E T' (spelling out each letter), never as 'cet' or 'sect'\n\n"
-            "FUNCTION USAGE:\n"
-            "When the user asks you to remember something, save a note, or add to notes, "
-            "you MUST use the save_note function to save it. "
-            "When you need to show Keith's profile (photo and LinkedIn), use the show_keith_profile function. "
-            "You have access to custom notes from previous sessions - use the get_custom_notes function "
-            "if you need to recall information that was saved before. "
-            "Always use these functions when the user requests memory operations or when you need to display Keith's profile."
+            """ 
+            You are InvestoBot, a sharp early-stage investor evaluating student startup pitches. You combine the pattern recognition of experienced VCs with genuine curiosity about ambitious ideas.
+            Core Approach
+            Listen first, probe second. Let founders present their vision, then dissect it systematically. You're looking for insight, not just execution—students often lack polish but may have asymmetric information or fresh perspectives on emerging problems.
+            Evaluation Framework
+            After hearing the initial pitch, drill into:
+            Problem/Market
+
+            Is this a real problem or a solution looking for one?
+            Who feels this pain acutely? How do you know?
+            Market size: niche that could expand, or fundamentally limited?
+
+            Solution/Technology
+
+            Why now? What's changed that makes this possible or necessary?
+            Technical moat: is this defensible or easily replicated?
+            What's the 10x improvement over alternatives?
+
+            Team/Execution
+
+            Why are you uniquely positioned to build this?
+            What have you already built/tested/learned?
+            Who's missing from this team?
+
+            Traction/Evidence
+
+            What's your riskiest assumption? How are you testing it?
+            Any early users/revenue/LOIs/meaningful validation?
+            What would you do with $100K? $1M?
+
+            Distribution/Growth
+
+            How does user #1 find you? User #100? User #10,000?
+            Unit economics: does this get better or worse at scale?
+
+            Response Style
+
+            Direct but not dismissive. Students deserve honest feedback, not coddling.
+            Ask one sharp question at a time. Let them think, don't overwhelm.
+            Signal what excites you and what concerns you. Be transparent about your reasoning.
+            Push on weak spots without killing momentum. The best founders get stronger under pressure.
+            End with clear next steps: pass, interesting but early, or genuinely excited.
+
+            You respect hustle and speed of learning over pedigree. You've seen Stanford dropouts fail and state school kids build unicorns. What matters: clarity of thought, willingness to iterate, and evidence they're learning faster than they're burning runway.
+            Be the investor you'd want in the room—demanding but fair, skeptical but open-minded.
+
+            Saving pitches
+
+            When the user indicates they are done with their pitch (e.g. "that's my pitch thank you!", "that's it thanks", "that's my pitch", "that's all thanks"), you MUST call save_pitch_transcript with the complete transcript of this entire conversation from the very start: every user utterance and every Investobot response, in order. Format the transcript as plain text with "User:" and "Investobot:" before each turn. Then confirm that their pitch was saved and give the filename.
+            """
         )
         super().__init__(
             instructions= default_instructions,
@@ -419,6 +499,7 @@ class GrokAssistant(Agent):
         self.memory = memory
         self.base_instructions = default_instructions
         self.room = room
+        self.attendee_store = attendee_store
         self._session_ref = None  # Will be set when session starts (using _session_ref to avoid conflict with Agent.session property)
         self._ctx_room = None  # Will store the context room directly
         self.demo_state = {
@@ -429,102 +510,50 @@ class GrokAssistant(Agent):
         }
     
     @function_tool()
-    async def save_note(self, content: str, category: str = None) -> str:
+    async def save_pitch_transcript(self, transcript: str) -> str:
         """
-        Save a note to the user's custom notes file.
-        
-        Use this when the user asks you to:
-        - Remember something
-        - Save a note
-        - Add to notes
-        - Write something down
-        - Record information
+        Save the full conversation transcript as a single .md file for this pitch.
+        Call this when the user indicates they are done with their pitch (e.g. "that's my pitch thank you!", "that's it thanks", "that's my pitch").
+        You MUST pass the complete transcript of this entire conversation from the start: every user utterance and every assistant (Investobot) response, in order.
+        Format as plain text with "User:" and "Investobot:" before each turn. One .md file is created per pitch (timestamped).
         
         Args:
-            content: The note content to save
-            category: Optional category for the note (e.g., "Vocabulary", "Preferences", "Reminder")
+            transcript: The full conversation transcript from the beginning of this session to now.
         
         Returns:
-            Confirmation message
+            Confirmation with the filename that was saved (e.g. "Saved pitch to pitch_2025-01-31_14-30-00.md").
         """
         if not self.memory:
             return "Error: Memory system not available"
         
         try:
-            self.memory.add_custom_note(content, category)
-            print(f"📝 Function called: save_note({content[:50]}..., category={category})")
-            return f"Note saved successfully: {content[:50]}..."
+            path = self.memory.save_pitch_transcript(transcript)
+            print(f"📄 Function called: save_pitch_transcript -> {path.name}")
+            return f"Saved pitch transcript to {path.name}"
         except Exception as e:
-            print(f"❌ Error saving note: {e}")
-            return f"Error saving note: {str(e)}"
+            print(f"❌ Error saving pitch transcript: {e}")
+            return f"Error saving pitch: {str(e)}"
     
     @function_tool()
-    async def update_lesson_plan(self, content: str) -> str:
+    async def list_saved_pitches(self) -> str:
         """
-        Update the current lesson plan.
-        
-        Use this when the user mentions:
-        - Lesson topics
-        - Learning objectives
-        - What they want to study today
-        - Lesson structure or plan
-        
-        Args:
-            content: The lesson plan content or update
+        List the user's saved pitch transcript filenames (newest first).
+        Use when the user asks what pitches they have saved or to confirm saves.
         
         Returns:
-            Confirmation message
+            A list of saved pitch filenames, or a message if none.
         """
         if not self.memory:
             return "Error: Memory system not available"
         
         try:
-            self.memory.update_lesson_plan(content)
-            print(f"📚 Function called: update_lesson_plan({content[:50]}...)")
-            return f"Lesson plan updated successfully"
+            names = self.memory.list_saved_pitches()
+            if not names:
+                return "No saved pitches yet."
+            return "Saved pitches (newest first): " + ", ".join(names)
         except Exception as e:
-            print(f"❌ Error updating lesson plan: {e}")
-            return f"Error updating lesson plan: {str(e)}"
-    
-    @function_tool()
-    async def get_custom_notes(self, keyword: str = None) -> str:
-        """
-        Retrieve custom notes that were previously saved.
-        Use this when the user asks about something that might have been saved before,
-        or when you need to recall information from previous sessions.
-        
-        Args:
-            keyword: Optional keyword to search for in notes. If not provided, returns all notes.
-        
-        Returns:
-            The relevant notes or all notes if no keyword provided
-        """
-        if not self.memory:
-            return "Error: Memory system not available"
-        
-        try:
-            if keyword:
-                # Search for notes containing the keyword
-                matches = self.memory.search_custom_notes(keyword)
-                if matches:
-                    return f"Found notes containing '{keyword}':\n" + "\n".join(matches[:10])  # Limit to 10 matches
-                else:
-                    return f"No notes found containing '{keyword}'"
-            else:
-                # Return all notes
-                notes_content = self.memory.get_custom_notes()
-                if notes_content and "## Notes" in notes_content:
-                    # Extract just the notes section
-                    notes_match = re.search(r'## Notes(.*?)(?=\n\n---\s*$|\*No custom notes|$)', notes_content, re.DOTALL)
-                    if notes_match:
-                        notes_text = notes_match.group(1).strip()
-                        notes_text = re.sub(r'\*No custom notes yet.*?\*', '', notes_text, flags=re.DOTALL)
-                        if notes_text.strip():
-                            return f"All saved notes:\n{notes_text.strip()}"
-                return "No custom notes found"
-        except Exception as e:
-            print(f"❌ Error retrieving notes: {e}")
-            return f"Error retrieving notes: {str(e)}"
+            print(f"❌ Error listing pitches: {e}")
+            return f"Error listing pitches: {str(e)}"
     
     @function_tool()
     async def add_to_conversation_history(self, role: str, content: str) -> str:
@@ -549,6 +578,65 @@ class GrokAssistant(Agent):
         except Exception as e:
             print(f"❌ Error adding to conversation: {e}")
             return f"Error: {str(e)}"
+    
+    @function_tool()
+    async def add_attendee_profile(
+        self,
+        full_name: str,
+        email: str,
+        description: str,
+        who_they_want_to_meet: str,
+        linkedin: str = None,
+        picture: str = None,
+        metadata_json: str = None,
+    ) -> str:
+        """
+        Register an attendee at the event. Call this after the user has told you about themselves and who they want to meet.
+        
+        Args:
+            full_name: Their full name (required).
+            email: Their email (required). Used as unique id.
+            description: Who they are / what they do (from what they said).
+            who_they_want_to_meet: Who they want to meet (from what they said).
+            linkedin: Optional LinkedIn profile URL.
+            picture: Optional picture URL or path (only if they gave one).
+            metadata_json: Optional JSON string of extra key/value data (e.g. '{"company": "Acme"}').
+        
+        Returns:
+            Confirmation message.
+        """
+        if not self.attendee_store:
+            return "Attendee storage is not available."
+        try:
+            metadata = None
+            if metadata_json and metadata_json.strip():
+                try:
+                    metadata = json.loads(metadata_json)
+                    if not isinstance(metadata, dict):
+                        metadata = None
+                except json.JSONDecodeError:
+                    pass
+            profile = AttendeeProfile(
+                full_name=(full_name or "").strip(),
+                email=(email or "").strip(),
+                description=(description or "").strip(),
+                who_they_want_to_meet=(who_they_want_to_meet or "").strip(),
+                linkedin=(linkedin or "").strip() or None,
+                picture=(picture or "").strip() or None,
+                metadata=metadata,
+            )
+            if not profile.email:
+                return "Email is required to register."
+            ok = self.attendee_store.add_profile(profile)
+            if ok:
+                print(f"📋 Registered attendee: {profile.full_name} <{profile.email}>")
+                return f"Registered {profile.full_name} at the event."
+            return "Failed to save profile (maybe duplicate email?)."
+        except Exception as e:
+            print(f"❌ Error in add_attendee_profile: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Error registering: {str(e)}"
     
     async def _describe_keith_photo(self) -> Optional[str]:
         """
@@ -665,90 +753,138 @@ class GrokAssistant(Agent):
         """
         try:
             # Send photo to Grok API (for future use, but don't describe it)
-            # We still call this to maintain the image functionality
             await self._describe_keith_photo()
-            # Try to get room from various sources (in order of preference)
-            room_to_use = None
-            
-            # First try the context room (most reliable)
-            if self._ctx_room:
-                room_to_use = self._ctx_room
-            
-            # Try the Agent's session property (read-only, but we can read it)
-            if not room_to_use and hasattr(self, 'session') and self.session:
-                try:
-                    room_to_use = self.session.room
-                except:
-                    pass
-            
-            # Try session reference
-            if not room_to_use and self._session_ref:
-                try:
-                    if hasattr(self._session_ref, 'room'):
-                        room_to_use = self._session_ref.room
-                except:
-                    pass
-            
-            # Fall back to stored room
-            if not room_to_use and self.room:
-                room_to_use = self.room
-            
-            if room_to_use:
-                import json
-                from livekit import rtc
-                
-                # Send data message to display Keith's profile
-                display_data = {
-                    'type': 'show_profile',
-                    'name': 'Keith MacAller',
-                    'title': 'CMO of SCET (Sutardja Center for Entrepreneurship)',
-                    'linkedin': 'https://www.linkedin.com/in/keithmcaleer/',
-                    'image': '/keith-pic.jpeg'  # Server endpoint
-                }
-                
-                # Send to all participants in the room
-                data = json.dumps(display_data).encode('utf-8')
-                
-                print(f"📸 Attempting to send Keith's profile display command...")
-                print(f"   Room type: {type(room_to_use)}")
-                print(f"   Has local_participant: {hasattr(room_to_use, 'local_participant')}")
-                
-                # Use the room's local participant to send data
-                try:
-                    if hasattr(room_to_use, 'local_participant'):
-                        local_participant = room_to_use.local_participant
-                        if local_participant:
-                            # publish_data signature: data, topic (optional), reliable (optional)
-                            # Don't pass topic if None, or use empty string
-                            await local_participant.publish_data(
-                                data, 
-                                reliable=True
-                            )
-                            print(f"✅ Successfully sent Keith's profile display command to web client")
-                            
-                            # Return brief confirmation
-                            return "Keith's profile is now displayed on screen."
-                        else:
-                            print("⚠️ Local participant is None")
-                    else:
-                        print("⚠️ Room doesn't have local_participant attribute")
-                except Exception as e:
-                    print(f"❌ Error publishing data: {e}")
-                    import traceback
-                    traceback.print_exc()
-                
-                return "Profile display requested (checking room connection...)"
-            else:
-                print("⚠️ Room not available, cannot send display command")
-                print(f"   Has session: {hasattr(self, 'session')}")
-                print(f"   Has _session_ref: {self._session_ref is not None}")
-                print(f"   Has room: {self.room is not None}")
-                return "Profile display requested (room not available in this context)"
+            display_data = {
+                'type': 'show_profile',
+                'name': 'Keith MacAller',
+                'title': 'CMO of SCET (Sutardja Center for Entrepreneurship)',
+                'linkedin': 'https://www.linkedin.com/in/keithmcaleer/',
+                'image': '/keith-pic.jpeg',
+                'description': '',
+                'who_they_want_to_meet': '',
+            }
+            sent = await self._publish_profile_display(display_data)
+            if sent:
+                print(f"✅ Successfully sent Keith's profile display command to web client")
+                return "Keith's profile is now displayed on screen."
+            print("⚠️ Room not available, cannot send display command")
+            return "Profile display requested (room not available in this context)"
         except Exception as e:
             print(f"❌ Error displaying Keith's profile: {e}")
             import traceback
             traceback.print_exc()
             return f"Error displaying profile: {str(e)}"
+    
+    async def _publish_profile_display(self, display_data: dict) -> bool:
+        """Send a show_profile display_data dict to the web client via the room. Returns True if sent."""
+        room_to_use = None
+        if self._ctx_room:
+            room_to_use = self._ctx_room
+        if not room_to_use and hasattr(self, 'session') and self.session:
+            try:
+                room_to_use = self.session.room
+            except Exception:
+                pass
+        if not room_to_use and self._session_ref and hasattr(self._session_ref, 'room'):
+            try:
+                room_to_use = self._session_ref.room
+            except Exception:
+                pass
+        if not room_to_use and self.room:
+            room_to_use = self.room
+        if not room_to_use or not hasattr(room_to_use, 'local_participant'):
+            return False
+        local_participant = room_to_use.local_participant
+        if not local_participant:
+            return False
+        data_bytes = json.dumps(display_data).encode('utf-8')
+        await local_participant.publish_data(data_bytes, reliable=True)
+        return True
+    
+    @function_tool()
+    async def show_attendee_profile(self, identifier: str) -> str:
+        """
+        Display an attendee's profile on the screen. Use when the user asks to see someone who is at the event.
+        identifier can be their email or full name.
+        
+        Args:
+            identifier: Email or full name of the attendee to show.
+        
+        Returns:
+            Confirmation or "I don't see that person here yet" if not found.
+        """
+        if not self.attendee_store:
+            return "Attendee list is not available."
+        profile = self.attendee_store.get_profile(identifier.strip())
+        if not profile:
+            profile = self.attendee_store.get_profile_by_name(identifier.strip())
+        if not profile:
+            return "I don't see that person here yet."
+        # Build display payload (same shape as show_profile for the client)
+        title = (profile.description or "")[:80]
+        if len((profile.description or "")) > 80:
+            title = title.rstrip() + "..."
+        display_data = {
+            'type': 'show_profile',
+            'name': profile.full_name or "",
+            'title': title or "",
+            'linkedin': profile.linkedin or "",
+            'image': profile.picture or "",
+            'description': profile.description or "",
+            'who_they_want_to_meet': profile.who_they_want_to_meet or "",
+        }
+        sent = await self._publish_profile_display(display_data)
+        if sent:
+            print(f"✅ Sent attendee profile for {profile.full_name} to web client")
+            return f"{profile.full_name}'s profile is now on screen."
+        return "Profile display requested (room not available)."
+    
+    @function_tool()
+    async def surface_attendee_list(self, who_they_want_to_meet: str = "") -> str:
+        """
+        Show the full list of people at the event on screen, with the best match for what the user wants first.
+        Call this when the user asks who they can meet, who's here, or to meet somebody (e.g. "someone in marketing").
+        The list is ordered with your top suggestion first. Then say who you suggest and call show_attendee_profile with that person's name.
+        
+        Args:
+            who_they_want_to_meet: What the user said they want (e.g. "someone in marketing", "founders", "engineers"). Use "" for "everyone" or "who's here".
+        
+        Returns:
+            A short summary like "Here are N people: [Name1] (suggested), [Name2], [Name3]. I suggest starting with [Name1]."
+        """
+        if not self.attendee_store:
+            return "Attendee list is not available."
+        ordered = self.attendee_store.list_profiles_ordered_by_match(who_they_want_to_meet.strip())
+        if not ordered:
+            return "Nobody is on the list yet."
+        # Build payload for client: full list with suggested first (list is already ordered)
+        attendees_payload = []
+        for p in ordered:
+            title = (p.description or "")[:80]
+            if len((p.description or "")) > 80:
+                title = title.rstrip() + "..."
+            attendees_payload.append({
+                "name": p.full_name or "",
+                "title": title,
+                "linkedin": p.linkedin or "",
+                "image": p.picture or "",
+                "description": p.description or "",
+                "who_they_want_to_meet": p.who_they_want_to_meet or "",
+                "email": p.email or "",
+            })
+        display_data = {
+            "type": "show_attendee_list",
+            "attendees": attendees_payload,
+            "suggested_first": 0,
+        }
+        sent = await self._publish_profile_display(display_data)
+        if sent:
+            print(f"✅ Sent attendee list ({len(ordered)} people, suggested first) to web client")
+        names = [p.full_name or "?" for p in ordered]
+        first = names[0]
+        if len(names) == 1:
+            return f"Here's who's here: {first}. I suggest {first}."
+        return f"Here are {len(names)} people: {first} (suggested), {', '.join(names[1:])}. I suggest starting with {first}."
     
     def save_note_manually(self, note_content: str, category: Optional[str] = None):
         """Manually save a note - can be called from instructions or other methods"""
@@ -794,9 +930,8 @@ class GrokAssistant(Agent):
             self.demo_state['greeted'] = True
             # The greeting will be handled by the initial generate_reply call
     
-    # Note: We're using function calling instead of lifecycle hooks
-    # The agent will explicitly call save_note() and update_lesson_plan() functions
-    # when the user requests memory operations
+    # When the user says they're done with their pitch (e.g. "that's my pitch thank you!"),
+    # the agent calls save_pitch_transcript() with the full conversation transcript.
     
     async def _refresh_instructions(self):
         """Refresh instructions with latest context"""
@@ -834,7 +969,7 @@ server = AgentServer(
 )
 
 
-@server.rtc_session()
+@server.rtc_session(agent_name="investobot")
 async def request_handler(ctx):
     """
     Handle incoming real-time communication session requests.
@@ -862,6 +997,9 @@ async def request_handler(ctx):
     memory = MultiFileMarkdownMemory(room_name, user_name)
     print(f"📁 Memory initialized for room: {room_name}, user: {user_name}")
     
+    # Attendee store (local JSON, shared across rooms for "who is at the event")
+    attendee_store = _get_attendee_store()
+    
     # Initialize the session with Grok realtime model
     # You can customize the voice by passing voice parameter:
     # Available voices: 'Ara', 'Rex', 'Sal', 'Eve', 'Leo'
@@ -871,18 +1009,18 @@ async def request_handler(ctx):
         ),
     )
     
-    # Create agent with memory and room reference
-    agent = GrokAssistant(memory=memory, room=ctx.room)
+    # Create agent with memory, room reference, and attendee store
+    agent = GrokAssistant(memory=memory, room=ctx.room, attendee_store=attendee_store)
     agent._session_ref = session  # Store session reference for data messages (using _session_ref to avoid conflict with Agent.session property)
     agent._ctx_room = ctx.room  # Store the context room directly for data messages
     
     # Start the session with the GrokAssistant agent
-    # The agent now has function tools (save_note, update_lesson_plan, show_keith_profile) that it can call
+    # The agent has save_pitch_transcript (when user says "that's my pitch thank you!") and list_saved_pitches
     await session.start(room=ctx.room, agent=agent)
     
     # Generate an initial greeting - CONNECTITRON STYLE (SHORT)
     await session.generate_reply(
-        instructions="Say: 'Hi, I'm Connectitron!' Then briefly ask them to tell you about themselves and who they want to meet. Keep it SHORT - just 1-2 sentences total. Be warm but concise."
+        instructions="Say: 'I'm investobot, pitch me something.'"
     )
 
 
@@ -906,8 +1044,11 @@ async def main():
     print("Starting GROK Voice Agent Server...")
     print(f"LiveKit URL: {livekit_url}")
     print(f"LiveKit API Key: {livekit_key}")
-    print("Make sure your LiveKit server is running!")
-    print("For local dev: run 'livekit-server --dev' in another terminal")
+    print("")
+    print("  >>> LiveKit SERVER must be running first, or connections will fail.")
+    print("  >>> Easiest: from Grokie/ run:  ./run-all.sh")
+    print("  >>> Or in another terminal:     livekit-server --dev")
+    print("")
     print("Server is ready to accept connections...\n")
     
     # Run the agent server (it's async, so we await it)

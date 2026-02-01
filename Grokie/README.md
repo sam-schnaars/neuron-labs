@@ -2,6 +2,17 @@
 
 This project demonstrates how to use the GROK voice agent API through LiveKit Agents.
 
+## Quick start (run everything)
+
+From the `Grokie/` directory, start LiveKit server, agent, token server, and frontend in one go:
+
+```bash
+./run-all.sh
+```
+
+Then open http://localhost:3000 and click "Talk to Investobot".  
+**Do not run only `python grok_voice_agent.py`** — the LiveKit server must be running first (port 7880).
+
 ## Setup
 
 1. **Install dependencies:**

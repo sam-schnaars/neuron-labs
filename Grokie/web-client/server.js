@@ -3,6 +3,7 @@
 
 import express from 'express';
 import { AccessToken } from 'livekit-server-sdk';
+import { RoomConfiguration, RoomAgentDispatch } from '@livekit/protocol';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
@@ -45,7 +46,15 @@ app.post('/api/token', async (req, res) => {
       canPublish: true,
       canSubscribe: true,
     });
-    
+
+    // Dispatch agent on participant connection (docs: room_config is used when room is created;
+    // use unique room name per connection so each connect gets a new room and agent dispatch)
+    at.roomConfig = new RoomConfiguration({
+      agents: [
+        new RoomAgentDispatch({ agentName: 'investobot' }),
+      ],
+    });
+
     console.log('AccessToken created, calling toJwt()...');
 
     // Call toJwt() - it should return a string
