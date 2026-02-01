@@ -34,6 +34,84 @@ const mouth = document.getElementById('mouth') as SVGEllipseElement;
 
 // API base URL
 const tokenServerUrl = import.meta.env.VITE_TOKEN_SERVER_URL || '/api';
+const apiBase = tokenServerUrl.replace(/\/token$/, '').replace(/\/$/, '') || '/api';
+
+// Views
+const homeView = document.getElementById('homeView') as HTMLElement;
+const pitchDetailView = document.getElementById('pitchDetailView') as HTMLElement;
+const sessionView = document.getElementById('sessionView') as HTMLElement;
+const pitchesList = document.getElementById('pitchesList') as HTMLUListElement;
+const pitchContent = document.getElementById('pitchContent') as HTMLPreElement;
+const btnPitchInvestobot = document.getElementById('btnPitchInvestobot') as HTMLButtonElement;
+const btnBackFromPitch = document.getElementById('btnBackFromPitch') as HTMLButtonElement;
+const btnBackToPitches = document.getElementById('btnBackToPitches') as HTMLButtonElement;
+
+type View = 'home' | 'pitch' | 'session';
+
+function showView(view: View) {
+  homeView?.classList.toggle('active', view === 'home');
+  pitchDetailView?.classList.toggle('active', view === 'pitch');
+  sessionView?.classList.toggle('active', view === 'session');
+}
+
+type PitchItem = { id: string; sessionId: string; filename: string; description: string; score?: number; savedAt?: string };
+
+async function loadPitches(): Promise<PitchItem[]> {
+  try {
+    const res = await fetch(`${apiBase}/pitches`);
+    const data = await res.json();
+    return (data.pitches ?? []) as PitchItem[];
+  } catch (e) {
+    console.error('Failed to load pitches:', e);
+    return [];
+  }
+}
+
+function renderPitchesList(items: PitchItem[]) {
+  if (!pitchesList) return;
+  if (items.length === 0) {
+    pitchesList.innerHTML = '<li class="empty">No saved pitches yet. Click "Pitch Investobot" to start.</li>';
+    return;
+  }
+  pitchesList.innerHTML = items
+    .map((p) => {
+      const label = p.description || p.filename.replace(/^pitch_|\.md$/g, '').replace(/_/g, ' ') || 'Pitch';
+      const safeLabel = escapeHtml(label);
+      const scoreNum = typeof p.score === 'number' ? Math.round(p.score * 100) : null;
+      const scoreBadge = scoreNum !== null ? `<span class="pitch-score">${scoreNum}</span>` : '';
+      return `<li data-id="${p.id}" data-session="${p.sessionId}" data-filename="${p.filename}">${scoreBadge}<span class="pitch-label">${safeLabel}</span></li>`;
+    })
+    .join('');
+  pitchesList.querySelectorAll('li[data-id]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const session = (el as HTMLElement).dataset.session;
+      const filename = (el as HTMLElement).dataset.filename;
+      if (session && filename) openPitch(session, filename);
+    });
+  });
+}
+
+function escapeHtml(s: string): string {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+async function openPitch(sessionId: string, filename: string) {
+  try {
+    const res = await fetch(`${apiBase}/pitch?session=${encodeURIComponent(sessionId)}&filename=${encodeURIComponent(filename)}`);
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || 'Failed to load pitch');
+    if (pitchContent) {
+      pitchContent.textContent = text;
+      showView('pitch');
+    }
+  } catch (e) {
+    console.error('Failed to load pitch:', e);
+    if (pitchContent) pitchContent.textContent = 'Failed to load this pitch.';
+    showView('pitch');
+  }
+}
 
 // ========== FACE ANIMATION ==========
 
@@ -344,9 +422,56 @@ async function toggleGrokie() {
   }
 }
 
+// ========== VIEW NAVIGATION ==========
+
+function goHome() {
+  if (isAgentEnabled) {
+    disconnect().then(() => {
+      isAgentEnabled = false;
+      if (toggleGrokieBtn) {
+        toggleGrokieBtn.textContent = 'Talk to Investobot';
+        toggleGrokieBtn.classList.remove('active');
+      }
+      showView('home');
+      loadPitches().then(renderPitchesList);
+    }).catch(console.error);
+  } else {
+    showView('home');
+    loadPitches().then(renderPitchesList);
+  }
+}
+
+async function startPitchSession() {
+  showView('session');
+  updateStatus('Connecting...', false);
+  try {
+    await connect();
+    isAgentEnabled = true;
+    if (toggleGrokieBtn) {
+      toggleGrokieBtn.textContent = 'End session';
+      toggleGrokieBtn.classList.add('active');
+    }
+  } catch (e) {
+    console.error('Failed to connect:', e);
+    const msg = e instanceof Error ? e.message : 'Connection failed';
+    updateStatus(msg, false);
+    if (toggleGrokieBtn) {
+      toggleGrokieBtn.textContent = 'Talk to Investobot';
+      toggleGrokieBtn.classList.remove('active');
+    }
+  }
+}
+
 // ========== INITIALIZATION ==========
 
-toggleGrokieBtn.addEventListener('click', toggleGrokie);
+showView('home');
+loadPitches().then(renderPitchesList);
+
+btnPitchInvestobot?.addEventListener('click', startPitchSession);
+btnBackFromPitch?.addEventListener('click', () => { showView('home'); loadPitches().then(renderPitchesList); });
+btnBackToPitches?.addEventListener('click', goHome);
+
+toggleGrokieBtn?.addEventListener('click', toggleGrokie);
 
 updateStatus('Disconnected', false);
 

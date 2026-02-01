@@ -111,6 +111,81 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', livekit_url: LIVEKIT_URL });
 });
 
+// Pitches: list all saved pitch transcripts (newest first)
+const MEMORY_ROOT = path.join(__dirname, '..', 'conversation_memory');
+app.get('/api/pitches', (req, res) => {
+  try {
+    const list = [];
+    if (!fs.existsSync(MEMORY_ROOT)) {
+      return res.json({ pitches: [] });
+    }
+    const sessionDirs = fs.readdirSync(MEMORY_ROOT, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => d.name);
+    for (const sessionId of sessionDirs) {
+      const pitchesDir = path.join(MEMORY_ROOT, sessionId, sessionId, 'pitches');
+      if (!fs.existsSync(pitchesDir)) continue;
+      const files = fs.readdirSync(pitchesDir)
+        .filter(f => f.endsWith('.md') && (f.startsWith('pitch_') || /^pitch \d+\.md$/.test(f)));
+      for (const filename of files) {
+        const filepath = path.join(pitchesDir, filename);
+        const stat = fs.statSync(filepath);
+        let description = '';
+        let score = 0;
+        try {
+          const raw = fs.readFileSync(filepath, 'utf-8');
+          const lines = raw.split('\n');
+          const firstLine = lines[0]?.trim() || '';
+          if (firstLine && !firstLine.startsWith('#') && firstLine.length < 200) {
+            description = firstLine;
+          }
+          // Second line: "score: 0.75" (dynamic; a separate ranking algorithm can overwrite this in the file)
+          const scoreLine = lines[1]?.trim() || '';
+          const scoreMatch = scoreLine.match(/^score:\s*([\d.]+)/i);
+          if (scoreMatch) score = parseFloat(scoreMatch[1], 10) || 0;
+        } catch (_) { /* ignore */ }
+        if (!description) description = filename.replace(/^pitch_|\.md$/g, '').replace(/_/g, ' ') || 'Pitch';
+        list.push({
+          id: `${sessionId}/${filename}`,
+          sessionId,
+          filename,
+          description,
+          score,
+          savedAt: stat.mtime.toISOString(),
+        });
+      }
+    }
+    list.sort((a, b) => (b.score - a.score) || (new Date(b.savedAt) - new Date(a.savedAt)));
+    res.json({ pitches: list });
+  } catch (err) {
+    console.error('Error listing pitches:', err);
+    res.status(500).json({ error: 'Failed to list pitches', pitches: [] });
+  }
+});
+
+// Pitches: get one pitch transcript content
+app.get('/api/pitch', (req, res) => {
+  try {
+    const { session: sessionId, filename } = req.query;
+    if (!sessionId || !filename || typeof sessionId !== 'string' || typeof filename !== 'string') {
+      return res.status(400).json({ error: 'session and filename required' });
+    }
+    if (filename.includes('..') || sessionId.includes('..')) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    const filepath = path.join(MEMORY_ROOT, sessionId, sessionId, 'pitches', filename);
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).json({ error: 'Pitch not found' });
+    }
+    const content = fs.readFileSync(filepath, 'utf-8');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(content);
+  } catch (err) {
+    console.error('Error reading pitch:', err);
+    res.status(500).json({ error: 'Failed to read pitch' });
+  }
+});
+
 // Serve Keith's image directly
 app.get('/keith-pic.jpeg', (req, res) => {
   const imagePath = path.join(__dirname, '..', 'keith-pic.jpeg');

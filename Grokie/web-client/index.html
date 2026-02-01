@@ -5,91 +5,200 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Investobot</title>
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         background: #8B0000;
         color: #ffffff;
         overflow: hidden;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .view {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        padding: 20px;
+        overflow: hidden;
+      }
+      .view.active { display: flex; }
+
+      #homeView { justify-content: flex-start; padding-top: 40px; }
+      .home-title { font-size: 28px; font-weight: 700; margin-bottom: 24px; text-align: center; }
+      .pitches-list {
+        list-style: none;
+        width: 100%;
+        max-width: 520px;
+        max-height: calc(100vh - 220px);
+        overflow-y: auto;
+        padding: 0 8px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 14px;
+      }
+      .pitches-list li {
+        position: relative;
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+        text-align: center;
+      }
+      .pitches-list li:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.4);
+      }
+      .pitches-list .pitch-score {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.95);
+        color: #8B0000;
+        font-size: 12px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+      }
+      .pitches-list .pitch-label {
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 4;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .pitches-list .empty {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 40px 20px;
+        opacity: 0.8;
+        aspect-ratio: auto;
+      }
+      .home-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 20px;
         display: flex;
         justify-content: center;
-        align-items: center;
-        height: 100vh;
+        background: linear-gradient(transparent, rgba(0,0,0,0.3));
       }
-      
-      /* Face Container */
-      .face-container {
+      .btn-pitch-investobot {
+        padding: 14px 32px;
+        background: rgba(255, 255, 255, 0.95);
+        color: #8B0000;
+        border: none;
+        border-radius: 28px;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .btn-pitch-investobot:hover {
+        transform: scale(1.03);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      }
+
+      #pitchDetailView { justify-content: flex-start; padding: 16px; }
+      .pitch-detail-header {
+        width: 100%;
+        max-width: 600px;
+        display: flex;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .btn-back {
+        padding: 10px 20px;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        border-radius: 20px;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-right: 12px;
+      }
+      .btn-back:hover { background: rgba(255, 255, 255, 0.3); }
+      .pitch-content {
+        width: 100%;
+        max-width: 600px;
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        white-space: pre-wrap;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      #sessionView .face-container {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        position: relative;
+        flex: 1;
         width: 100%;
-        height: 100%;
       }
-      
       .face-wrapper {
-        position: relative;
         width: 400px;
         height: 400px;
         display: flex;
         align-items: center;
         justify-content: center;
       }
-      
-      .animated-face {
-        width: 100%;
-        height: 100%;
-        filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.25));
+      .animated-face { width: 100%; height: 100%; filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.25)); }
+      .face-circle { fill: #ffffff; transition: transform 0.1s ease-out; }
+      .eye { fill: #8B0000; transition: transform 0.15s ease-out; }
+      .eye.speaking { animation: blink 0.3s ease-in-out; }
+      .mouth { fill: #8B0000; transition: d 0.1s ease-out; }
+      .mouth.speaking { animation: mouthMove 0.15s ease-in-out infinite; }
+      @keyframes blink { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.1); } }
+      @keyframes mouthMove { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.2); } }
+
+      .status-indicator {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 8px 16px;
+        background: rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        font-size: 14px;
+        color: #ffffff;
+        z-index: 10;
       }
-      
-      /* Face parts - red and white theme */
-      .face-circle {
-        fill: #ffffff;
-        transition: transform 0.1s ease-out;
-      }
-      
-      .eye {
-        fill: #8B0000;
-        transition: transform 0.15s ease-out;
-      }
-      
-      .eye.speaking {
-        animation: blink 0.3s ease-in-out;
-      }
-      
-      .mouth {
-        fill: #8B0000;
-        transition: d 0.1s ease-out;
-      }
-      
-      .mouth.speaking {
-        animation: mouthMove 0.15s ease-in-out infinite;
-      }
-      
-      @keyframes blink {
-        0%, 100% { transform: scaleY(1); }
-        50% { transform: scaleY(0.1); }
-      }
-      
-      @keyframes mouthMove {
-        0%, 100% { transform: scaleY(1); }
-        50% { transform: scaleY(1.2); }
-      }
-      
-      /* Bottom Controls */
-      .bottom-controls {
-        position: fixed;
+      .status-indicator.connected { background: rgba(255, 255, 255, 0.25); }
+      .status-indicator.disconnected { background: rgba(0, 0, 0, 0.35); }
+
+      .session-controls {
+        position: absolute;
         bottom: 20px;
         left: 50%;
         transform: translateX(-50%);
-        z-index: 1000;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        z-index: 10;
       }
-      
       .toggle-button {
         padding: 12px 24px;
         background: rgba(255, 255, 255, 0.2);
@@ -102,67 +211,59 @@
         cursor: pointer;
         transition: all 0.3s;
       }
-      
-      .toggle-button:hover {
-        background: rgba(255, 255, 255, 0.3);
-        border-color: rgba(255, 255, 255, 0.6);
-      }
-      
+      .toggle-button:hover { background: rgba(255, 255, 255, 0.3); border-color: rgba(255, 255, 255, 0.6); }
       .toggle-button.active {
         background: rgba(255, 255, 255, 0.35);
         border-color: rgba(255, 255, 255, 0.7);
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
       }
-      
-      /* Status indicator */
-      .status-indicator {
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 8px 16px;
-        background: rgba(0, 0, 0, 0.25);
-        backdrop-filter: blur(10px);
+      .btn-back-session {
+        padding: 10px 20px;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.35);
         border-radius: 20px;
+        color: #fff;
         font-size: 14px;
-        color: #ffffff;
-        z-index: 1000;
+        font-weight: 600;
+        cursor: pointer;
       }
-      
-      .status-indicator.connected {
-        background: rgba(255, 255, 255, 0.25);
-      }
-      
-      .status-indicator.disconnected {
-        background: rgba(0, 0, 0, 0.35);
-      }
+      .btn-back-session:hover { background: rgba(255, 255, 255, 0.25); }
     </style>
   </head>
   <body>
-    <div class="face-container">
-      <div class="status-indicator" id="statusIndicator">Disconnected</div>
-      <div class="face-wrapper">
-        <svg class="animated-face" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-          <!-- Face circle -->
-          <circle class="face-circle" cx="100" cy="100" r="80" id="faceCircle"/>
-          
-          <!-- Left eye -->
-          <ellipse class="eye" cx="70" cy="80" rx="8" ry="12" id="leftEye"/>
-          
-          <!-- Right eye -->
-          <ellipse class="eye" cx="130" cy="80" rx="8" ry="12" id="rightEye"/>
-          
-          <!-- Mouth -->
-          <ellipse class="mouth" cx="100" cy="130" rx="20" ry="8" id="mouth"/>
-        </svg>
+    <div id="homeView" class="view active">
+      <h1 class="home-title">Investobot</h1>
+      <ul id="pitchesList" class="pitches-list"></ul>
+      <div class="home-footer">
+        <button id="btnPitchInvestobot" class="btn-pitch-investobot">Pitch Investobot</button>
       </div>
     </div>
-    
-    <!-- Bottom Controls -->
-    <div class="bottom-controls">
-      <button id="toggleGrokieBtn" class="toggle-button">Talk to Investobot</button>
+
+    <div id="pitchDetailView" class="view">
+      <div class="pitch-detail-header">
+        <button id="btnBackFromPitch" class="btn-back">← Back to pitches</button>
+      </div>
+      <pre id="pitchContent" class="pitch-content"></pre>
     </div>
-    
+
+    <div id="sessionView" class="view">
+      <div class="status-indicator" id="statusIndicator">Disconnected</div>
+      <div class="face-container">
+        <div class="face-wrapper">
+          <svg class="animated-face" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <circle class="face-circle" cx="100" cy="100" r="80" id="faceCircle"/>
+            <ellipse class="eye" cx="70" cy="80" rx="8" ry="12" id="leftEye"/>
+            <ellipse class="eye" cx="130" cy="80" rx="8" ry="12" id="rightEye"/>
+            <ellipse class="mouth" cx="100" cy="130" rx="20" ry="8" id="mouth"/>
+          </svg>
+        </div>
+      </div>
+      <div class="session-controls">
+        <button id="btnBackToPitches" class="btn-back-session">Back to pitches</button>
+        <button id="toggleGrokieBtn" class="toggle-button">Talk to Investobot</button>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

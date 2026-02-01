@@ -340,15 +340,38 @@ class MultiFileMarkdownMemory:
         d.mkdir(parents=True, exist_ok=True)
         return d
     
-    def save_pitch_transcript(self, transcript: str) -> Path:
+    def _next_pitch_number(self) -> int:
+        """Return the next pitch number (1, 2, 3, ...) for this session."""
+        if not self.pitches_dir.exists():
+            return 1
+        import re
+        max_n = 0
+        for p in self.pitches_dir.iterdir():
+            if not p.is_file() or not p.suffix == ".md":
+                continue
+            name = p.stem  # no extension
+            # "pitch 1" -> 1, "pitch_2026-01-31_16-37-26" -> ignore (legacy)
+            m = re.match(r"^pitch\s+(\d+)$", name, re.IGNORECASE)
+            if m:
+                max_n = max(max_n, int(m.group(1)))
+        return max_n + 1
+
+    def save_pitch_transcript(self, transcript: str, short_description: str, score: float) -> Path:
         """
         Save the full conversation transcript as a single .md file for this pitch.
-        One file per pitch; filename includes timestamp.
+        File format: line 1 = short_description, line 2 = "score: <number>", blank line, then transcript.
+        Score is used for ranking; a separate ranking algorithm can later overwrite the score line in the file.
+        Filenames are "pitch 1.md", "pitch 2.md", etc. (per session).
         """
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        filename = f"pitch_{timestamp}.md"
+        n = self._next_pitch_number()
+        filename = f"pitch {n}.md"
         filepath = self.pitches_dir / filename
-        
+
+        # First line = short description (parsed by API for list display). Strip newlines to keep one line.
+        description_line = (short_description or "Untitled pitch").strip().split("\n")[0].strip() or "Untitled pitch"
+        # Second line = score (parseable; can be updated later by a separate ranking algorithm)
+        score_line = f"score: {score:.4f}"
+
         header = f"""# Pitch transcript
 
 **Room:** {self.room_name}  
@@ -360,20 +383,23 @@ class MultiFileMarkdownMemory:
 ## Conversation
 
 """
-        content = header + (transcript.strip() or "(empty transcript)")
+        body = header + (transcript.strip() or "(empty transcript)")
+        content = description_line + "\n" + score_line + "\n\n" + body
         filepath.write_text(content, encoding="utf-8")
-        print(f"📄 Saved pitch transcript to {filepath}")
+        print(f"📄 Saved pitch transcript to {filepath} ({description_line!r}, score={score:.4f})")
         return filepath
-    
+
     def list_saved_pitches(self) -> List[str]:
-        """Return list of saved pitch filenames (newest first)."""
+        """Return list of saved pitch filenames (newest first). Supports 'pitch N.md' and legacy 'pitch_*.md'."""
         if not self.pitches_dir.exists():
             return []
-        files = sorted(
-            self.pitches_dir.glob("pitch_*.md"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+        files = []
+        for p in self.pitches_dir.iterdir():
+            if not p.is_file() or not p.name.endswith(".md"):
+                continue
+            if p.name.startswith("pitch_") or (p.name.startswith("pitch ") and ".md" in p.name):
+                files.append(p)
+        files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         return [p.name for p in files]
     
     # ========== CONTEXT BUILDING ==========
@@ -490,7 +516,7 @@ class GrokAssistant(Agent):
 
             Saving pitches
 
-            When the user indicates they are done with their pitch (e.g. "that's my pitch thank you!", "that's it thanks", "that's my pitch", "that's all thanks"), you MUST call save_pitch_transcript with the complete transcript of this entire conversation from the very start: every user utterance and every Investobot response, in order. Format the transcript as plain text with "User:" and "Investobot:" before each turn. Then confirm that their pitch was saved and give the filename.
+            When the user indicates they are done with their pitch (e.g. "that's my pitch thank you!", "that's it thanks", "that's my pitch", "that's all thanks"), you MUST call save_pitch_transcript with (1) the complete transcript from the very start with "User:" and "Investobot:" before each turn, (2) a short_description: one line summarizing the business (e.g. "Coffee delivery app for offices"), and (3) score: a random number between 0 and 1 (e.g. 0.72). Pick a different random score each time; this is a placeholder until we have a real ranking algorithm. Then confirm that their pitch was saved.
             """
         )
         super().__init__(
@@ -510,24 +536,27 @@ class GrokAssistant(Agent):
         }
     
     @function_tool()
-    async def save_pitch_transcript(self, transcript: str) -> str:
+    async def save_pitch_transcript(self, transcript: str, short_description: str, score: float) -> str:
         """
         Save the full conversation transcript as a single .md file for this pitch.
         Call this when the user indicates they are done with their pitch (e.g. "that's my pitch thank you!", "that's it thanks", "that's my pitch").
-        You MUST pass the complete transcript of this entire conversation from the start: every user utterance and every assistant (Investobot) response, in order.
-        Format as plain text with "User:" and "Investobot:" before each turn. One .md file is created per pitch (timestamped).
+        You MUST pass: (1) the complete transcript from the start with "User:" and "Investobot:" before each turn,
+        (2) short_description: one line summarizing the business (e.g. "Coffee delivery app for offices"),
+        and (3) score: a random number between 0 and 1 (e.g. 0.72). Pick a different random score each time; this is a placeholder until a real ranking algorithm exists.
         
         Args:
             transcript: The full conversation transcript from the beginning of this session to now.
+            short_description: One line: business name or few words describing the idea (used as the pitch title in the app).
+            score: A random float between 0 and 1 (e.g. 0.72). Used to rank pitches in the list; replace with a real score later.
         
         Returns:
-            Confirmation with the filename that was saved (e.g. "Saved pitch to pitch_2025-01-31_14-30-00.md").
+            Confirmation with the filename that was saved (e.g. "Saved pitch to pitch 1.md").
         """
         if not self.memory:
             return "Error: Memory system not available"
         
         try:
-            path = self.memory.save_pitch_transcript(transcript)
+            path = self.memory.save_pitch_transcript(transcript, short_description, score)
             print(f"📄 Function called: save_pitch_transcript -> {path.name}")
             return f"Saved pitch transcript to {path.name}"
         except Exception as e:
