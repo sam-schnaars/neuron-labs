@@ -1,0 +1,52 @@
+# Grokie stack for Linux (or any host with Docker)
+# Run from Grokie/:  docker compose up --build
+# Then open http://localhost:8080
+
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "7880:7880"
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file: .env
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      XAI_API_KEY: ${XAI_API_KEY}
+    volumes:
+      - grokie_memory:/app/conversation_memory
+      - grokie_events:/app/event_data
+    depends_on:
+      livekit:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    env_file: .env
+    environment:
+      LIVEKIT_URL: ws://localhost:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      PORT: 8080
+    volumes:
+      - grokie_memory:/app/conversation_memory
+    ports:
+      - "8080:8080"
+    depends_on:
+      livekit:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  grokie_memory:
+  grokie_events:

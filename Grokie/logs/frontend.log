@@ -3,7 +3,59 @@
 > vite
 
 
-  VITE v5.4.21  ready in 150 ms
+  VITE v5.4.21  ready in 225 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
+11:21:29 PM [vite] page reload src/main.ts
+11:21:32 PM [vite] page reload index.html
+11:21:36 PM [vite] page reload index.html
+11:35:47 PM [vite] page reload src/main.ts
+11:35:56 PM [vite] page reload index.html
+11:39:02 PM [vite] page reload index.html
+11:43:19 PM [vite] page reload index.html
+11:43:35 PM [vite] page reload index.html
+11:43:43 PM [vite] page reload index.html
+11:43:50 PM [vite] page reload index.html
+11:44:09 PM [vite] page reload index.html
+11:44:29 PM [vite] page reload index.html
+11:44:30 PM [vite] page reload index.html
+11:44:36 PM [vite] page reload index.html
+11:44:44 PM [vite] page reload index.html
+11:44:44 PM [vite] page reload index.html
+11:44:48 PM [vite] page reload index.html
+11:45:01 PM [vite] page reload index.html
+11:45:04 PM [vite] page reload index.html
+11:45:05 PM [vite] page reload index.html
+11:45:05 PM [vite] page reload index.html
+11:45:09 PM [vite] page reload index.html
+11:45:12 PM [vite] page reload index.html
+11:45:15 PM [vite] page reload index.html
+11:45:17 PM [vite] page reload index.html
+11:45:29 PM [vite] page reload index.html
+11:45:33 PM [vite] page reload index.html
+11:45:36 PM [vite] page reload index.html
+11:45:40 PM [vite] page reload index.html
+11:45:45 PM [vite] page reload index.html
+11:45:49 PM [vite] page reload index.html
+11:46:34 PM [vite] page reload index.html
+11:47:01 PM [vite] page reload index.html
+11:47:10 PM [vite] page reload index.html
+11:47:14 PM [vite] page reload index.html
+11:47:15 PM [vite] page reload index.html
+11:47:18 PM [vite] page reload index.html
+11:47:26 PM [vite] page reload index.html
+11:47:34 PM [vite] page reload index.html
+11:47:42 PM [vite] page reload index.html
+11:47:48 PM [vite] page reload index.html
+11:47:48 PM [vite] page reload index.html
+11:47:56 PM [vite] page reload index.html
+11:49:59 PM [vite] page reload index.html
+11:50:20 PM [vite] page reload src/main.ts
+11:50:23 PM [vite] page reload src/main.ts
+11:56:26 PM [vite] page reload index.html
+11:59:16 PM [vite] page reload index.html
+11:59:21 PM [vite] page reload index.html
+11:59:30 PM [vite] page reload index.html
+11:59:34 PM [vite] page reload index.html
+12:00:01 AM [vite] page reload index.html

@@ -356,10 +356,10 @@ class MultiFileMarkdownMemory:
                 max_n = max(max_n, int(m.group(1)))
         return max_n + 1
 
-    def save_pitch_transcript(self, transcript: str, short_description: str, score: float) -> Path:
+    def save_pitch_transcript(self, transcript: str, short_description: str, score: float, rubric_breakdown: str = "") -> Path:
         """
         Save the full conversation transcript as a single .md file for this pitch.
-        File format: line 1 = short_description, line 2 = "score: <number>", blank line, then transcript.
+        File format: line 1 = short_description, line 2 = "score: <number>", line 3 = "rubric: <breakdown>" (optional), blank line, then transcript.
         Score is used for ranking; a separate ranking algorithm can later overwrite the score line in the file.
         Filenames are "pitch 1.md", "pitch 2.md", etc. (per session).
         """
@@ -369,22 +369,32 @@ class MultiFileMarkdownMemory:
 
         # First line = short description (parsed by API for list display). Strip newlines to keep one line.
         description_line = (short_description or "Untitled pitch").strip().split("\n")[0].strip() or "Untitled pitch"
+        # When we have a rubric breakdown, score = sum of category values (stored score always matches rubric sum)
+        if rubric_breakdown and rubric_breakdown.strip():
+            nums = re.findall(r"[\d.]+", rubric_breakdown.strip())
+            if nums:
+                try:
+                    # Each category is capped at 1.0; sum (max 5) is the score
+                    capped = [min(float(x), 1.0) for x in nums]
+                    rubric_sum = sum(capped)
+                    if 0 < rubric_sum <= 5:
+                        score = round(rubric_sum, 2)
+                except (ValueError, TypeError):
+                    pass
         # Second line = score (parseable; can be updated later by a separate ranking algorithm)
         score_line = f"score: {score:.4f}"
+        # Optional third line = rubric breakdown (one line, human-readable)
+        rubric_line = ("rubric: " + rubric_breakdown.strip().split("\n")[0].strip()) if (rubric_breakdown and rubric_breakdown.strip()) else ""
 
-        header = f"""# Pitch transcript
-
-**Room:** {self.room_name}  
-**User:** {self.user_name}  
-**Saved:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
----
-
+        header = f"""
 ## Conversation
 
 """
         body = header + (transcript.strip() or "(empty transcript)")
-        content = description_line + "\n" + score_line + "\n\n" + body
+        header_lines = [description_line, score_line]
+        if rubric_line:
+            header_lines.append(rubric_line)
+        content = "\n".join(header_lines) + "\n\n" + body
         filepath.write_text(content, encoding="utf-8")
         print(f"📄 Saved pitch transcript to {filepath} ({description_line!r}, score={score:.4f})")
         return filepath
@@ -514,9 +524,18 @@ class GrokAssistant(Agent):
             You respect hustle and speed of learning over pedigree. You've seen Stanford dropouts fail and state school kids build unicorns. What matters: clarity of thought, willingness to iterate, and evidence they're learning faster than they're burning runway.
             Be the investor you'd want in the room—demanding but fair, skeptical but open-minded.
 
+            Pitch scoring rubric (use this for every pitch—do NOT use a random score)
+            Score the pitch out of 5 total. Give each category a decimal score from 0 to 1 (e.g. 0.8, 0.9, 1.0). Each category is capped at 1.0—never use a value above 1 (e.g. 1.4 is invalid; use 1.0). The total score is the sum of the five category scores (max 5.0). Each category is between 0 and 1.
+            • Problem/Market (decimal, part of 5): Real problem vs solution looking for one; clarity on who feels the pain; market size / expandability.
+            • Solution/Technology (decimal, part of 5): Why now; defensibility; 10x improvement over alternatives.
+            • Team/Execution (decimal, part of 5): Unique fit; what they’ve built/tested; team gaps.
+            • Traction/Evidence (decimal, part of 5): Riskiest assumption and how they’re testing it; early users/revenue/LOIs/validation.
+            • Distribution/Growth (decimal, part of 5): Path to user #1, #100, #10k; unit economics at scale.
+            When saving, pass the total (sum of the five) and rubric_breakdown with each category's decimal (each 0–1, max 1.0), e.g. "Problem/Market=0.9, Solution=1.0, Team=1.0, Traction=0.8, Distribution=1.0" (sum 4.7). None may exceed 1.0.
+
             Saving pitches
 
-            When the user indicates they are done with their pitch (e.g. "that's my pitch thank you!", "that's it thanks", "that's my pitch", "that's all thanks"), you MUST call save_pitch_transcript with (1) the complete transcript from the very start with "User:" and "Investobot:" before each turn, (2) a short_description: one line summarizing the business (e.g. "Coffee delivery app for offices"), and (3) score: a random number between 0 and 1 (e.g. 0.72). Pick a different random score each time; this is a placeholder until we have a real ranking algorithm. Then confirm that their pitch was saved.
+            When the user indicates they are done with their pitch (e.g. "save my pitch", "that's my pitch thank you!", "that's it thanks", "that's my pitch", "that's all thanks"), you MUST call save_pitch_transcript with (1) the complete transcript from the very start with "User:" and "Investobot:" before each turn, (2) short_description: one line summarizing the business (e.g. "Coffee delivery app for offices"), (3) score: the sum of the five category scores (max 5.0), and (4) rubric_breakdown: a one-line summary with decimal scores per category (each 0–1, max 1.0), e.g. "Problem/Market=0.9, Solution=1.0, Team=1.0, Traction=0.8, Distribution=1.0". Then confirm that their pitch was saved.
             """
         )
         super().__init__(
@@ -536,18 +555,20 @@ class GrokAssistant(Agent):
         }
     
     @function_tool()
-    async def save_pitch_transcript(self, transcript: str, short_description: str, score: float) -> str:
+    async def save_pitch_transcript(self, transcript: str, short_description: str, score: float, rubric_breakdown: str = "") -> str:
         """
         Save the full conversation transcript as a single .md file for this pitch.
-        Call this when the user indicates they are done with their pitch (e.g. "that's my pitch thank you!", "that's it thanks", "that's my pitch").
+        Call this when the user indicates they are done with their pitch (e.g. "save my pitch", "that's my pitch thank you!", "that's it thanks", "that's my pitch").
         You MUST pass: (1) the complete transcript from the start with "User:" and "Investobot:" before each turn,
         (2) short_description: one line summarizing the business (e.g. "Coffee delivery app for offices"),
-        and (3) score: a random number between 0 and 1 (e.g. 0.72). Pick a different random score each time; this is a placeholder until a real ranking algorithm exists.
+        (3) score: the sum of the five category scores (max 5.0),
+        and (4) rubric_breakdown: one line with decimal scores per category (each 0–1, max 1.0), e.g. "Problem/Market=0.9, Solution=1.0, Team=1.0, Traction=0.8, Distribution=1.0".
         
         Args:
             transcript: The full conversation transcript from the beginning of this session to now.
             short_description: One line: business name or few words describing the idea (used as the pitch title in the app).
-            score: A random float between 0 and 1 (e.g. 0.72). Used to rank pitches in the list; replace with a real score later.
+            score: The sum of the five category scores (max 5.0).
+            rubric_breakdown: One-line breakdown with decimal scores per category (each 0–1, max 1.0), e.g. "Problem/Market=0.9, Solution=1.0, Team=1.0, Traction=0.8, Distribution=1.0".
         
         Returns:
             Confirmation with the filename that was saved (e.g. "Saved pitch to pitch 1.md").
@@ -556,7 +577,7 @@ class GrokAssistant(Agent):
             return "Error: Memory system not available"
         
         try:
-            path = self.memory.save_pitch_transcript(transcript, short_description, score)
+            path = self.memory.save_pitch_transcript(transcript, short_description, score, rubric_breakdown)
             print(f"📄 Function called: save_pitch_transcript -> {path.name}")
             return f"Saved pitch transcript to {path.name}"
         except Exception as e:
@@ -1049,7 +1070,7 @@ async def request_handler(ctx):
     
     # Generate an initial greeting - CONNECTITRON STYLE (SHORT)
     await session.generate_reply(
-        instructions="Say: 'I'm investobot, pitch me something.'"
+        instructions="Say confidently: 'I'm vesty, pitch me something in 30 seconds.'"
     )
 
 

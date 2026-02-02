@@ -45,16 +45,26 @@ const pitchContent = document.getElementById('pitchContent') as HTMLPreElement;
 const btnPitchInvestobot = document.getElementById('btnPitchInvestobot') as HTMLButtonElement;
 const btnBackFromPitch = document.getElementById('btnBackFromPitch') as HTMLButtonElement;
 const btnBackToPitches = document.getElementById('btnBackToPitches') as HTMLButtonElement;
+const rubricView = document.getElementById('rubricView') as HTMLElement;
+const btnBackFromRubric = document.getElementById('btnBackFromRubric') as HTMLButtonElement;
+const btnStartPitch = document.getElementById('btnStartPitch') as HTMLButtonElement;
+const pitchTimerBar = document.getElementById('pitchTimerBar') as HTMLElement;
+const pitchTimer = document.getElementById('pitchTimer') as HTMLElement;
+const pitchTimerInstruction = document.getElementById('pitchTimerInstruction') as HTMLElement;
 
-type View = 'home' | 'pitch' | 'session';
+let pitchTimerIntervalId: ReturnType<typeof setInterval> | null = null;
+const PITCH_TIMER_SECONDS = 60;
+
+type View = 'home' | 'pitch' | 'session' | 'rubric';
 
 function showView(view: View) {
   homeView?.classList.toggle('active', view === 'home');
   pitchDetailView?.classList.toggle('active', view === 'pitch');
   sessionView?.classList.toggle('active', view === 'session');
+  rubricView?.classList.toggle('active', view === 'rubric');
 }
 
-type PitchItem = { id: string; sessionId: string; filename: string; description: string; score?: number; savedAt?: string };
+type PitchItem = { id: string; sessionId: string; filename: string; description: string; score?: number; rubric?: string; savedAt?: string };
 
 async function loadPitches(): Promise<PitchItem[]> {
   try {
@@ -77,9 +87,15 @@ function renderPitchesList(items: PitchItem[]) {
     .map((p) => {
       const label = p.description || p.filename.replace(/^pitch_|\.md$/g, '').replace(/_/g, ' ') || 'Pitch';
       const safeLabel = escapeHtml(label);
-      const scoreNum = typeof p.score === 'number' ? Math.round(p.score * 100) : null;
-      const scoreBadge = scoreNum !== null ? `<span class="pitch-score">${scoreNum}</span>` : '';
-      return `<li data-id="${p.id}" data-session="${p.sessionId}" data-filename="${p.filename}">${scoreBadge}<span class="pitch-label">${safeLabel}</span></li>`;
+      const scoreBadge =
+        typeof p.score === 'number'
+          ? p.score <= 5
+            ? `<span class="pitch-score">${Number(p.score).toFixed(1)}/5</span>`
+            : `<span class="pitch-score">${Math.round(p.score * 100)}</span>`
+          : '';
+      const rubricTitle = p.rubric ? ` title="${escapeHtml(p.rubric).replace(/"/g, '&quot;')}"` : '';
+      const rubricSub = p.rubric ? `<span class="pitch-rubric">${escapeHtml(p.rubric)}</span>` : '';
+      return `<li data-id="${p.id}" data-session="${p.sessionId}" data-filename="${p.filename}"${rubricTitle}>${scoreBadge}<div class="pitch-content-wrap"><span class="pitch-label">${safeLabel}</span>${rubricSub}</div></li>`;
     })
     .join('');
   pitchesList.querySelectorAll('li[data-id]').forEach((el) => {
@@ -110,6 +126,42 @@ async function openPitch(sessionId: string, filename: string) {
     console.error('Failed to load pitch:', e);
     if (pitchContent) pitchContent.textContent = 'Failed to load this pitch.';
     showView('pitch');
+  }
+}
+
+function formatPitchTimer(seconds: number): string {
+  if (seconds >= 0) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+  const abs = Math.abs(seconds);
+  const m = Math.floor(abs / 60);
+  const s = abs % 60;
+  return `-${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function startPitchTimer() {
+  stopPitchTimer();
+  if (pitchTimerBar) pitchTimerBar.removeAttribute('aria-hidden');
+  let remaining = PITCH_TIMER_SECONDS;
+  const tick = () => {
+    if (!pitchTimer) return;
+    pitchTimer.textContent = formatPitchTimer(remaining);
+    pitchTimer.classList.toggle('negative', remaining < 0);
+    remaining -= 1;
+  };
+  tick();
+  pitchTimerIntervalId = setInterval(tick, 1000);
+}
+
+function stopPitchTimer() {
+  if (pitchTimerIntervalId !== null) {
+    clearInterval(pitchTimerIntervalId);
+    pitchTimerIntervalId = null;
+  }
+  if (pitchTimerBar) {
+    pitchTimerBar.setAttribute('aria-hidden', 'true');
   }
 }
 
@@ -358,6 +410,7 @@ async function disconnect() {
   const trackToStop = localAudioTrack;
   room = null;
   localAudioTrack = null;
+  stopPitchTimer();
 
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -443,6 +496,7 @@ function goHome() {
 
 async function startPitchSession() {
   showView('session');
+  startPitchTimer();
   updateStatus('Connecting...', false);
   try {
     await connect();
@@ -467,7 +521,9 @@ async function startPitchSession() {
 showView('home');
 loadPitches().then(renderPitchesList);
 
-btnPitchInvestobot?.addEventListener('click', startPitchSession);
+btnPitchInvestobot?.addEventListener('click', () => showView('rubric'));
+btnBackFromRubric?.addEventListener('click', () => showView('home'));
+btnStartPitch?.addEventListener('click', startPitchSession);
 btnBackFromPitch?.addEventListener('click', () => { showView('home'); loadPitches().then(renderPitchesList); });
 btnBackToPitches?.addEventListener('click', goHome);
 

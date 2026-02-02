@@ -1,0 +1,32 @@
+# Grokie web client: build frontend + run token server (serves built app on same port)
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY web-client/package*.json ./
+RUN npm ci
+
+# Copy source and build
+COPY web-client/ ./
+RUN npm run build
+
+# Production stage: run server from web-client so paths (.. = Grokie) resolve
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Layout: /app/web-client/ (server + dist), /app/conversation_memory (mounted at runtime)
+COPY web-client/package*.json ./web-client/
+RUN npm ci -C web-client --omit=dev
+
+COPY web-client/server.js ./web-client/
+COPY --from=builder /app/dist ./web-client/dist
+COPY keith-pic.jpeg ./
+
+RUN mkdir -p conversation_memory
+
+ENV NODE_ENV=production
+EXPOSE 8080
+WORKDIR /app/web-client
+CMD ["node", "server.js"]

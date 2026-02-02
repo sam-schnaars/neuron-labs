@@ -8,64 +8,49 @@ LiveKit API Key: devkey
 
 Server is ready to accept connections...
 
+failed to insert item `16bd2c52-c3c5-4f66-a7e8-48d9bc2429e0`: Item with ID 16bd2c52-c3c5-4f66-a7e8-48d9bc2429e0 already exists.
+failed to insert item `9bb18329-95a0-46d1-a33c-a032da503708`: Item with ID 9bb18329-95a0-46d1-a33c-a032da503708 already exists.
+failed to insert item `a19dd702-5de2-4d9c-a66f-26289929a3a2`: Item with ID a19dd702-5de2-4d9c-a66f-26289929a3a2 already exists.
 📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: investobot-1769908925316-7siexlo, user: investobot-1769908925316-7siexlo
+📁 Memory initialized for room: investobot-1770016408593-qhbvtsi, user: investobot-1770016408593-qhbvtsi
 ✅ Loaded context from memory files (including custom notes)
 📝 Context preview: ## Current Lesson Plan
 
 *No lesson plan yet. Start a lesson to create a plan.*
 ...
+📄 Saved pitch transcript to conversation_memory/investobot-1770016408593-qhbvtsi/investobot-1770016408593-qhbvtsi/pitches/pitch 1.md ('Physical AI cube with custom knowledge via speech', score=0.2500)
+📄 Function called: save_pitch_transcript -> pitch 1.md
 📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: investobot-1769908960546-0zwfr0g, user: investobot-1769908960546-0zwfr0g
+📁 Memory initialized for room: investobot-1770016876497-kohwttk, user: investobot-1770016876497-kohwttk
 ✅ Loaded context from memory files (including custom notes)
 📝 Context preview: ## Current Lesson Plan
 
 *No lesson plan yet. Start a lesson to create a plan.*
 ...
-failed to connect to livekit, retrying in 0s
-Traceback (most recent call last):
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1013, in _connection_task
-    await self._run_ws(ws)
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1094, in _run_ws
-    await asyncio.gather(*tasks)
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1066, in _recv_task
-    raise Exception("worker connection closed unexpectedly")
-Exception: worker connection closed unexpectedly
-failed to connect to livekit, retrying in 2s
-Traceback (most recent call last):
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/connector.py", line 1268, in _wrap_create_connection
-    sock = await aiohappyeyeballs.start_connection(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohappyeyeballs/impl.py", line 141, in start_connection
-    raise OSError(first_errno, msg)
-ConnectionRefusedError: [Errno 61] Multiple exceptions: [Errno 61] Connect call failed ('::1', 7880, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 7880)
+failed to insert item `b1b8cbac-8298-403c-bd5e-60ff54ba03cc`: Item with ID b1b8cbac-8298-403c-bd5e-60ff54ba03cc already exists.
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: investobot-1770017802489-uwi2ekm, user: investobot-1770017802489-uwi2ekm
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
 
-The above exception was the direct cause of the following exception:
+*No lesson plan yet. Start a lesson to create a plan.*
+...
+📄 Saved pitch transcript to conversation_memory/investobot-1770017802489-uwi2ekm/investobot-1770017802489-uwi2ekm/pitches/pitch 1.md ('AI pet collars with early sales', score=5.0000)
+📄 Function called: save_pitch_transcript -> pitch 1.md
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: investobot-1770018486329-m9dwt1x, user: investobot-1770018486329-m9dwt1x
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
 
-Traceback (most recent call last):
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 973, in _connection_task
-    ws = await self._http_session.ws_connect(
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/client.py", line 1076, in _ws_connect
-    resp = await self.request(
-           ^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/client.py", line 779, in _request
-    resp = await handler(req)
-           ^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/client.py", line 734, in _connect_and_send_request
-    conn = await self._connector.connect(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/connector.py", line 642, in connect
-    proto = await self._create_connection(req, traces, timeout)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/connector.py", line 1209, in _create_connection
-    _, proto = await self._create_direct_connection(req, traces, timeout)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/connector.py", line 1581, in _create_direct_connection
-    raise last_exc
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/connector.py", line 1550, in _create_direct_connection
-    transp, proto = await self._wrap_create_connection(
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/aiohttp/connector.py", line 1291, in _wrap_create_connection
-    raise client_error(req.connection_key, exc) from exc
-aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host localhost:7880 ssl:default [Multiple exceptions: [Errno 61] Connect call failed ('::1', 7880, 0, 0), [Errno 61] Connect call failed ('127.0.0.1', 7880)]
+*No lesson plan yet. Start a lesson to create a plan.*
+...
+failed to insert item `69c36a28-c2bd-4166-acd0-f61c09a32652`: Item with ID 69c36a28-c2bd-4166-acd0-f61c09a32652 already exists.
+failed to insert item `69c36a28-c2bd-4166-acd0-f61c09a32652`: Item with ID 69c36a28-c2bd-4166-acd0-f61c09a32652 already exists.
+failed to insert item `69c36a28-c2bd-4166-acd0-f61c09a32652`: Item with ID 69c36a28-c2bd-4166-acd0-f61c09a32652 already exists.
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: investobot-1770019204712-rv0ft83, user: investobot-1770019204712-rv0ft83
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
+
+*No lesson plan yet. Start a lesson to create a plan.*
+...

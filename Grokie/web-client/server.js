@@ -132,6 +132,7 @@ app.get('/api/pitches', (req, res) => {
         const stat = fs.statSync(filepath);
         let description = '';
         let score = 0;
+        let rubric = '';
         try {
           const raw = fs.readFileSync(filepath, 'utf-8');
           const lines = raw.split('\n');
@@ -139,10 +140,24 @@ app.get('/api/pitches', (req, res) => {
           if (firstLine && !firstLine.startsWith('#') && firstLine.length < 200) {
             description = firstLine;
           }
-          // Second line: "score: 0.75" (dynamic; a separate ranking algorithm can overwrite this in the file)
+          // Second line: "score: 5.0"
           const scoreLine = lines[1]?.trim() || '';
           const scoreMatch = scoreLine.match(/^score:\s*([\d.]+)/i);
           if (scoreMatch) score = parseFloat(scoreMatch[1], 10) || 0;
+          // Optional third line: "rubric: Problem/Market=0.8, Solution/Technology=0.9, ..."
+          const rubricLine = lines[2]?.trim() || '';
+          if (rubricLine.toLowerCase().startsWith('rubric:')) {
+            rubric = rubricLine.replace(/^rubric:\s*/i, '').trim();
+            // Derive score from rubric sum; each category capped at 1 (max 5 total)
+            const nums = rubric.match(/[\d.]+/g);
+            if (nums && nums.length >= 1) {
+              const sum = nums
+                .map((n) => parseFloat(n, 10))
+                .filter((n) => Number.isFinite(n))
+                .reduce((acc, n) => acc + Math.min(1, n), 0);
+              if (Number.isFinite(sum)) score = Math.round(sum * 100) / 100;
+            }
+          }
         } catch (_) { /* ignore */ }
         if (!description) description = filename.replace(/^pitch_|\.md$/g, '').replace(/_/g, ' ') || 'Pitch';
         list.push({
@@ -151,6 +166,7 @@ app.get('/api/pitches', (req, res) => {
           filename,
           description,
           score,
+          rubric: rubric || undefined,
           savedAt: stat.mtime.toISOString(),
         });
       }

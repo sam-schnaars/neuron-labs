@@ -1,0 +1,15 @@
+# Grokie Python voice agent (LiveKit + xAI/Grok)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Application code
+COPY grok_voice_agent.py attendee_store.py ./
+RUN mkdir -p conversation_memory event_data
+
+# Run the agent (LIVEKIT_URL etc. come from env at runtime)
+CMD ["python", "grok_voice_agent.py"]
