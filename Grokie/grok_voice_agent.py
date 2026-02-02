@@ -360,7 +360,7 @@ class MultiFileMarkdownMemory:
         """
         Save the full conversation transcript as a single .md file for this pitch.
         File format: line 1 = short_description, line 2 = "score: <number>", line 3 = "rubric: <breakdown>" (optional), blank line, then transcript.
-        Score is used for ranking; a separate ranking algorithm can later overwrite the score line in the file.
+        The web app may later append a "contact: <email>" line when the user opts in on the score sheet.
         Filenames are "pitch 1.md", "pitch 2.md", etc. (per session).
         """
         n = self._next_pitch_number()

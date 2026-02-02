@@ -179,6 +179,53 @@ app.get('/api/pitches', (req, res) => {
   }
 });
 
+// Share contact: append "contact: email" to the latest pitch markdown in this session (called when user clicks Done on score sheet)
+app.post('/api/share-contact', (req, res) => {
+  try {
+    const { email, room } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    if (!room || typeof room !== 'string') {
+      return res.status(400).json({ error: 'Room is required' });
+    }
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      return res.status(400).json({ error: 'Invalid email address' });
+    }
+    if (room.includes('..') || /[\\/]/.test(room)) {
+      return res.status(400).json({ error: 'Invalid room' });
+    }
+    const pitchesDir = path.join(MEMORY_ROOT, room, room, 'pitches');
+    if (!fs.existsSync(pitchesDir)) {
+      return res.status(404).json({ error: 'No pitch found for this session' });
+    }
+    const files = fs.readdirSync(pitchesDir)
+      .filter(f => f.endsWith('.md') && (f.startsWith('pitch_') || /^pitch \d+\.md$/.test(f)))
+      .map(f => ({ name: f, path: path.join(pitchesDir, f) }));
+    if (files.length === 0) {
+      return res.status(404).json({ error: 'No pitch found for this session' });
+    }
+    const stats = files.map(f => ({ ...f, mtime: fs.statSync(f.path).mtime }));
+    stats.sort((a, b) => b.mtime - a.mtime);
+    const latestPath = stats[0].path;
+    let content = fs.readFileSync(latestPath, 'utf-8');
+    const contactLine = `contact: ${trimmed}`;
+    if (content.includes('contact:')) {
+      content = content.replace(/^contact: .+$/m, contactLine);
+    } else {
+      const match = content.match(/\n\n(## Conversation|## )/);
+      const insertAt = match ? match.index : content.length;
+      content = content.slice(0, insertAt) + '\n' + contactLine + content.slice(insertAt);
+    }
+    fs.writeFileSync(latestPath, content, 'utf-8');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving share-contact:', err);
+    res.status(500).json({ error: 'Failed to save contact' });
+  }
+});
+
 // Pitches: get one pitch transcript content
 app.get('/api/pitch', (req, res) => {
   try {

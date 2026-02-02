@@ -162,6 +162,19 @@
         margin-right: 12px;
       }
       .btn-back:hover { background: rgba(255, 255, 255, 0.3); }
+      .pitch-contact-line {
+        width: 100%;
+        max-width: 600px;
+        margin-bottom: 12px;
+        padding: 10px 16px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.95);
+      }
+      .pitch-contact-line[aria-hidden="true"] { display: none; }
+      .pitch-contact-line strong { margin-right: 6px; }
       .pitch-content {
         width: 100%;
         max-width: 600px;
@@ -321,6 +334,63 @@
       .rubric-list li:last-child { margin-bottom: 0; }
       .rubric-cat { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
       .rubric-desc { font-size: 13px; color: rgba(255, 255, 255, 0.85); line-height: 1.4; }
+      .share-contact {
+        max-width: 560px;
+        width: 100%;
+        margin-bottom: 24px;
+        padding: 14px 18px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+      }
+      .share-contact label {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        cursor: pointer;
+        font-size: 15px;
+        color: rgba(255, 255, 255, 0.95);
+        line-height: 1.4;
+      }
+      .share-contact input[type="checkbox"] {
+        margin-top: 2px;
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        accent-color: #8B0000;
+      }
+      .share-contact-email-wrap {
+        margin-top: 12px;
+        margin-left: 32px;
+        display: none;
+      }
+      .share-contact-email-wrap.visible { display: block; }
+      .share-contact-email-wrap label {
+        display: block;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.85);
+        margin-bottom: 6px;
+      }
+      .share-contact-email-wrap input[type="email"] {
+        width: 100%;
+        max-width: 320px;
+        padding: 10px 14px;
+        font-size: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+      }
+      .share-contact-email-wrap input[type="email"]::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+      }
+      .share-contact-status {
+        margin-top: 8px;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.8);
+      }
+      .share-contact-status.error { color: rgba(255, 200, 200, 0.95); }
+      .score-sheet-share-contact { margin: 16px 0; max-width: 100%; }
       .rubric-actions {
         display: flex;
         gap: 12px;
@@ -402,9 +472,50 @@
         cursor: pointer;
       }
       .btn-done-score:hover { background: #fff; }
+
+      /* Portrait mode: rotate entire app 90° so it's upright when laptop is flipped to portrait */
+      .layout-toggle {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: none;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        transition: background 0.2s;
+      }
+      .layout-toggle:hover { background: rgba(255, 255, 255, 0.35); }
+      .layout-toggle svg { width: 22px; height: 22px; }
+      #app-rotator {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      body[data-layout="portrait"] #app-rotator {
+        top: 50%;
+        left: 50%;
+        width: 100vh;
+        height: 100vw;
+        transform: translate(-50%, -50%) rotate(-90deg);
+        transform-origin: center center;
+      }
     </style>
   </head>
-  <body>
+  <body data-layout="landscape">
+    <div id="app-rotator">
     <div id="homeView" class="view active">
       <h1 class="home-title">vesty leaderboard</h1>
       <ul id="pitchesList" class="pitches-list"></ul>
@@ -450,6 +561,7 @@
       <div class="pitch-detail-header">
         <button id="btnBackFromPitch" class="btn-back">← Back to pitches</button>
       </div>
+      <div class="pitch-contact-line" id="pitchContactLine" aria-hidden="true"></div>
       <pre id="pitchContent" class="pitch-content"></pre>
     </div>
 
@@ -464,6 +576,17 @@
         <p class="score-sheet-description" id="scoreSheetDescription">—</p>
         <div class="score-sheet-total" id="scoreSheetTotal">—</div>
         <pre class="score-sheet-rubric" id="scoreSheetRubric">—</pre>
+        <div class="share-contact score-sheet-share-contact">
+          <label>
+            <input type="checkbox" id="shareContactCheckbox" />
+            <span>Share my contact with investors, SCET, and potential teammates</span>
+          </label>
+          <div class="share-contact-email-wrap" id="shareContactEmailWrap">
+            <label for="shareContactEmail">Email</label>
+            <input type="email" id="shareContactEmail" placeholder="you@example.com" autocomplete="email" />
+            <div class="share-contact-status" id="shareContactStatus" aria-live="polite"></div>
+          </div>
+        </div>
         <p class="score-sheet-hint">Tap Done when you&rsquo;re ready.</p>
         <button type="button" class="btn-done-score" id="btnDoneScore">Done</button>
       </div>
@@ -482,7 +605,11 @@
         <button id="toggleGrokieBtn" class="toggle-button">Talk to Vesty</button>
       </div>
     </div>
+    </div>
 
+    <button type="button" class="layout-toggle" id="layoutToggle" title="Rotate for portrait (flip laptop 90°)">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 3a9 9 0 0 1 9 9"/></svg>
+    </button>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

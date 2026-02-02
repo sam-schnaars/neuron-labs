@@ -1,26 +1,3 @@
-Starting GROK Voice Agent Server...
-LiveKit URL: ws://localhost:7880
-LiveKit API Key: devkey
-
-  >>> LiveKit SERVER must be running first, or connections will fail.
-  >>> Easiest: from Grokie/ run:  ./run-all.sh
-  >>> Or in another terminal:     livekit-server --dev
-
-Server is ready to accept connections...
-
-failed to insert item `6dc12baa-c00a-43ed-a6e2-dad88baf3407`: Item with ID 6dc12baa-c00a-43ed-a6e2-dad88baf3407 already exists.
-failed to insert item `151cd2ba-d881-48a5-baab-a69f959cab56`: Item with ID 151cd2ba-d881-48a5-baab-a69f959cab56 already exists.
-failed to insert item `151cd2ba-d881-48a5-baab-a69f959cab56`: Item with ID 151cd2ba-d881-48a5-baab-a69f959cab56 already exists.
-📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: investobot-1770067133499-5rdk0yj, user: investobot-1770067133499-5rdk0yj
-✅ Loaded context from memory files (including custom notes)
-📝 Context preview: ## Current Lesson Plan
-
-*No lesson plan yet. Start a lesson to create a plan.*
-...
-📄 Saved pitch transcript to conversation_memory/investobot-1770067133499-5rdk0yj/investobot-1770067133499-5rdk0yj/pitches/pitch 1.md ('Vesty', score=2.3000)
-📄 Function called: save_pitch_transcript -> pitch 1.md
-✅ Sent pitch_saved to client (score=2.30)
 failed to connect to livekit, retrying in 0s
 Traceback (most recent call last):
   File "/Users/samschnaars/Desktop/neuron-labs/Grokie/venv/lib/python3.11/site-packages/livekit/agents/worker.py", line 1013, in _connection_task

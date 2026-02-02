@@ -42,6 +42,7 @@ const pitchDetailView = document.getElementById('pitchDetailView') as HTMLElemen
 const sessionView = document.getElementById('sessionView') as HTMLElement;
 const pitchesList = document.getElementById('pitchesList') as HTMLUListElement;
 const pitchContent = document.getElementById('pitchContent') as HTMLPreElement;
+const pitchContactLine = document.getElementById('pitchContactLine') as HTMLElement | null;
 const btnPitchInvestobot = document.getElementById('btnPitchInvestobot') as HTMLButtonElement;
 const btnBackFromPitch = document.getElementById('btnBackFromPitch') as HTMLButtonElement;
 const btnBackToPitches = document.getElementById('btnBackToPitches') as HTMLButtonElement;
@@ -56,9 +57,14 @@ const scoreSheetDescription = document.getElementById('scoreSheetDescription') a
 const scoreSheetTotal = document.getElementById('scoreSheetTotal') as HTMLElement;
 const scoreSheetRubric = document.getElementById('scoreSheetRubric') as HTMLPreElement;
 const btnDoneScore = document.getElementById('btnDoneScore') as HTMLButtonElement;
+const shareContactCheckbox = document.getElementById('shareContactCheckbox') as HTMLInputElement | null;
+const shareContactEmailWrap = document.getElementById('shareContactEmailWrap') as HTMLElement | null;
+const shareContactEmail = document.getElementById('shareContactEmail') as HTMLInputElement | null;
+const shareContactStatus = document.getElementById('shareContactStatus') as HTMLElement | null;
 
 let pitchTimerIntervalId: ReturnType<typeof setInterval> | null = null;
 const PITCH_TIMER_SECONDS = 60;
+let currentRoomName: string | null = null;
 
 type View = 'home' | 'pitch' | 'session' | 'rubric';
 
@@ -116,6 +122,11 @@ function escapeHtml(s: string): string {
   return div.innerHTML;
 }
 
+function extractContactFromPitchText(text: string): string | null {
+  const m = text.match(/^contact:\s*(.+)$/m);
+  return m ? m[1].trim() : null;
+}
+
 async function openPitch(sessionId: string, filename: string) {
   try {
     const res = await fetch(`${apiBase}/pitch?session=${encodeURIComponent(sessionId)}&filename=${encodeURIComponent(filename)}`);
@@ -125,9 +136,23 @@ async function openPitch(sessionId: string, filename: string) {
       pitchContent.textContent = text;
       showView('pitch');
     }
+    const contact = extractContactFromPitchText(text);
+    if (pitchContactLine) {
+      if (contact) {
+        pitchContactLine.innerHTML = `<strong>Contact:</strong> ${escapeHtml(contact)}`;
+        pitchContactLine.removeAttribute('aria-hidden');
+      } else {
+        pitchContactLine.textContent = '';
+        pitchContactLine.setAttribute('aria-hidden', 'true');
+      }
+    }
   } catch (e) {
     console.error('Failed to load pitch:', e);
     if (pitchContent) pitchContent.textContent = 'Failed to load this pitch.';
+    if (pitchContactLine) {
+      pitchContactLine.textContent = '';
+      pitchContactLine.setAttribute('aria-hidden', 'true');
+    }
     showView('pitch');
   }
 }
@@ -178,6 +203,11 @@ function showScoreSheet(description: string, score: number, rubric: string) {
     scoreSheetOverlay.removeAttribute('aria-hidden');
     scoreSheetOverlay.classList.add('active');
   }
+  // Reset share-contact form for this pitch
+  if (shareContactCheckbox) shareContactCheckbox.checked = false;
+  if (shareContactEmail) shareContactEmail.value = '';
+  setShareContactStatus('');
+  shareContactEmailWrap?.classList.remove('visible');
 }
 
 function hideScoreSheet() {
@@ -325,7 +355,7 @@ async function requestMicrophonePermission(): Promise<MediaStream> {
   }
 }
 
-async function connect() {
+async function connect(roomNameOverride?: string) {
   if (isConnecting || isAgentEnabled) return;
   isConnecting = true;
   toggleGrokieBtn.disabled = true;
@@ -413,7 +443,8 @@ async function connect() {
       }
     });
 
-    const roomName = getRoomName();
+    const roomName = roomNameOverride ?? getRoomName();
+    currentRoomName = roomName;
     const token = await generateToken(roomName, DEFAULT_NAME);
     await newRoom.connect(LIVEKIT_URL, token, {
       autoSubscribe: true,
@@ -442,6 +473,7 @@ async function disconnect() {
   const roomToDisconnect = room;
   const trackToStop = localAudioTrack;
   room = null;
+  currentRoomName = null;
   localAudioTrack = null;
   stopPitchTimer();
 
@@ -527,12 +559,42 @@ function goHome() {
   }
 }
 
+function isValidEmail(s: string): boolean {
+  const trimmed = (s || '').trim();
+  return trimmed.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
+
+function setShareContactStatus(message: string, isError = false) {
+  if (!shareContactStatus) return;
+  shareContactStatus.textContent = message;
+  shareContactStatus.classList.toggle('error', isError);
+}
+
+async function submitShareContact(email: string, roomName: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${apiBase}/share-contact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), room: roomName }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error((data as { error?: string }).error || `Request failed: ${res.status}`);
+    }
+    return true;
+  } catch (e) {
+    console.error('Failed to share contact:', e);
+    return false;
+  }
+}
+
 async function startPitchSession() {
+  const roomName = getRoomName();
   showView('session');
   startPitchTimer();
   updateStatus('Connecting...', false);
   try {
-    await connect();
+    await connect(roomName);
     isAgentEnabled = true;
     if (toggleGrokieBtn) {
       toggleGrokieBtn.textContent = 'End session';
@@ -549,17 +611,73 @@ async function startPitchSession() {
   }
 }
 
+// ========== LAYOUT MODE (portrait / landscape) ==========
+
+const LAYOUT_STORAGE_KEY = 'vesty-layout';
+const layoutToggle = document.getElementById('layoutToggle');
+type LayoutMode = 'portrait' | 'landscape';
+
+function getLayoutMode(): LayoutMode {
+  const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+  return saved === 'portrait' ? 'portrait' : 'landscape';
+}
+
+function setLayoutMode(mode: LayoutMode) {
+  document.body.setAttribute('data-layout', mode);
+  localStorage.setItem(LAYOUT_STORAGE_KEY, mode);
+  if (layoutToggle) {
+    layoutToggle.title = mode === 'portrait'
+      ? 'Back to normal (landscape)'
+      : 'Rotate for portrait — flip laptop 90° to view upright';
+    layoutToggle.setAttribute('aria-label', mode === 'portrait'
+      ? 'Layout: rotated for portrait. Click to return to normal.'
+      : 'Layout: normal. Click to rotate for viewing with laptop flipped to portrait.');
+  }
+}
+
+function initLayoutMode() {
+  setLayoutMode(getLayoutMode());
+}
+layoutToggle?.addEventListener('click', () => {
+  setLayoutMode(getLayoutMode() === 'landscape' ? 'portrait' : 'landscape');
+});
+
 // ========== INITIALIZATION ==========
 
+initLayoutMode();
 showView('home');
 loadPitches().then(renderPitchesList);
 
 btnPitchInvestobot?.addEventListener('click', () => showView('rubric'));
 btnBackFromRubric?.addEventListener('click', () => showView('home'));
+shareContactCheckbox?.addEventListener('change', () => {
+  shareContactEmailWrap?.classList.toggle('visible', shareContactCheckbox.checked);
+  if (!shareContactCheckbox.checked) setShareContactStatus('');
+});
 btnStartPitch?.addEventListener('click', startPitchSession);
 btnBackFromPitch?.addEventListener('click', () => { showView('home'); loadPitches().then(renderPitchesList); });
 btnBackToPitches?.addEventListener('click', goHome);
-btnDoneScore?.addEventListener('click', () => { hideScoreSheet(); goHome(); });
+btnDoneScore?.addEventListener('click', async () => {
+  if (shareContactCheckbox?.checked) {
+    const email = shareContactEmail?.value?.trim() ?? '';
+    if (!isValidEmail(email)) {
+      setShareContactStatus('Please enter a valid email address.', true);
+      return;
+    }
+    if (!currentRoomName) {
+      setShareContactStatus('Session ended. Contact could not be saved.', true);
+      return;
+    }
+    setShareContactStatus('Saving…');
+    const ok = await submitShareContact(email, currentRoomName);
+    if (!ok) {
+      setShareContactStatus('Could not save. Try again or continue.', true);
+      return;
+    }
+  }
+  hideScoreSheet();
+  goHome();
+});
 
 toggleGrokieBtn?.addEventListener('click', toggleGrokie);
 
