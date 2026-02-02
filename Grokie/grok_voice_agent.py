@@ -535,7 +535,7 @@ class GrokAssistant(Agent):
 
             Saving pitches
 
-            When the user indicates they are done with their pitch (e.g. "save my pitch", "that's my pitch thank you!", "that's it thanks", "that's my pitch", "that's all thanks"), you MUST call save_pitch_transcript with (1) the complete transcript from the very start with "User:" and "Investobot:" before each turn, (2) short_description: one line summarizing the business (e.g. "Coffee delivery app for offices"), (3) score: the sum of the five category scores (max 5.0), and (4) rubric_breakdown: a one-line summary with decimal scores per category (each 0–1, max 1.0), e.g. "Problem/Market=0.9, Solution=1.0, Team=1.0, Traction=0.8, Distribution=1.0". Then confirm that their pitch was saved.
+            When the user indicates they are done with their pitch (e.g. "save my pitch", "that's my pitch thank you!", "that's it thanks", "that's my pitch", "that's all thanks"), you MUST: (1) call save_pitch_transcript with the complete transcript, short_description, score, and rubric_breakdown; (2) call send_pitch_result_to_client with the same short_description, score, and rubric_breakdown so the score sheet appears on their screen; (3) then walk them through the score—say their total (e.g. "You got 4.6 out of 5") and one short sentence per category explaining what you gave them and why (e.g. "Problem and Market: 0.9—you had a clear pain point; we could've gone deeper on market size. Solution: 1.0—strong why now. Team: 1.0—...").
             """
         )
         super().__init__(
@@ -560,13 +560,13 @@ class GrokAssistant(Agent):
         Save the full conversation transcript as a single .md file for this pitch.
         Call this when the user indicates they are done with their pitch (e.g. "save my pitch", "that's my pitch thank you!", "that's it thanks", "that's my pitch").
         You MUST pass: (1) the complete transcript from the start with "User:" and "Investobot:" before each turn,
-        (2) short_description: one line summarizing the business (e.g. "Coffee delivery app for offices"),
+        (2) short_description: a snappy title only—product or company name (e.g. "AI Pet Collars", "Coffee for Offices"). Do NOT use a sentence or tagline (e.g. avoid "AI Pet Collars with early sales").
         (3) score: the sum of the five category scores (max 5.0),
         and (4) rubric_breakdown: one line with decimal scores per category (each 0–1, max 1.0), e.g. "Problem/Market=0.9, Solution=1.0, Team=1.0, Traction=0.8, Distribution=1.0".
         
         Args:
             transcript: The full conversation transcript from the beginning of this session to now.
-            short_description: One line: business name or few words describing the idea (used as the pitch title in the app).
+            short_description: Snappy title only: product or company name (e.g. "AI Pet Collars"). Not a sentence or tagline.
             score: The sum of the five category scores (max 5.0).
             rubric_breakdown: One-line breakdown with decimal scores per category (each 0–1, max 1.0), e.g. "Problem/Market=0.9, Solution=1.0, Team=1.0, Traction=0.8, Distribution=1.0".
         
@@ -583,6 +583,31 @@ class GrokAssistant(Agent):
         except Exception as e:
             print(f"❌ Error saving pitch transcript: {e}")
             return f"Error saving pitch: {str(e)}"
+    
+    @function_tool()
+    async def send_pitch_result_to_client(self, short_description: str, score: float, rubric_breakdown: str) -> str:
+        """
+        Send the pitch result (description, score, rubric) to the web client so it can display the score sheet on screen while you walk the user through it. Call this immediately after save_pitch_transcript when the user says "save my pitch", with the same short_description, score, and rubric_breakdown. Then speak and walk them through each category (one sentence per category).
+
+        Args:
+            short_description: Same snappy title as saved (product/company name only, e.g. "AI Pet Collars").
+            score: Total score 0–5 (same as saved).
+            rubric_breakdown: One-line rubric breakdown (same as saved), e.g. "Problem/Market=0.9, Solution=1.0, Team=1.0, Traction=0.8, Distribution=1.0".
+        
+        Returns:
+            Confirmation that the result was sent.
+        """
+        display_data = {
+            'type': 'pitch_saved',
+            'description': short_description or 'Pitch',
+            'score': float(score),
+            'rubric': rubric_breakdown or '',
+        }
+        sent = await self._publish_profile_display(display_data)
+        if sent:
+            print(f"✅ Sent pitch_saved to client (score={score:.2f})")
+            return "Score sheet sent to client; now walk the user through each category."
+        return "Could not send score sheet (room not available)."
     
     @function_tool()
     async def list_saved_pitches(self) -> str:

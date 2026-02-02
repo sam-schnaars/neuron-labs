@@ -51,6 +51,11 @@ const btnStartPitch = document.getElementById('btnStartPitch') as HTMLButtonElem
 const pitchTimerBar = document.getElementById('pitchTimerBar') as HTMLElement;
 const pitchTimer = document.getElementById('pitchTimer') as HTMLElement;
 const pitchTimerInstruction = document.getElementById('pitchTimerInstruction') as HTMLElement;
+const scoreSheetOverlay = document.getElementById('scoreSheetOverlay') as HTMLElement;
+const scoreSheetDescription = document.getElementById('scoreSheetDescription') as HTMLElement;
+const scoreSheetTotal = document.getElementById('scoreSheetTotal') as HTMLElement;
+const scoreSheetRubric = document.getElementById('scoreSheetRubric') as HTMLPreElement;
+const btnDoneScore = document.getElementById('btnDoneScore') as HTMLButtonElement;
 
 let pitchTimerIntervalId: ReturnType<typeof setInterval> | null = null;
 const PITCH_TIMER_SECONDS = 60;
@@ -93,9 +98,7 @@ function renderPitchesList(items: PitchItem[]) {
             ? `<span class="pitch-score">${Number(p.score).toFixed(1)}/5</span>`
             : `<span class="pitch-score">${Math.round(p.score * 100)}</span>`
           : '';
-      const rubricTitle = p.rubric ? ` title="${escapeHtml(p.rubric).replace(/"/g, '&quot;')}"` : '';
-      const rubricSub = p.rubric ? `<span class="pitch-rubric">${escapeHtml(p.rubric)}</span>` : '';
-      return `<li data-id="${p.id}" data-session="${p.sessionId}" data-filename="${p.filename}"${rubricTitle}>${scoreBadge}<div class="pitch-content-wrap"><span class="pitch-label">${safeLabel}</span>${rubricSub}</div></li>`;
+      return `<li data-id="${p.id}" data-session="${p.sessionId}" data-filename="${p.filename}">${scoreBadge}<div class="pitch-content-wrap"><span class="pitch-label">${safeLabel}</span></div></li>`;
     })
     .join('');
   pitchesList.querySelectorAll('li[data-id]').forEach((el) => {
@@ -162,6 +165,25 @@ function stopPitchTimer() {
   }
   if (pitchTimerBar) {
     pitchTimerBar.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function showScoreSheet(description: string, score: number, rubric: string) {
+  if (scoreSheetDescription) scoreSheetDescription.textContent = description;
+  if (scoreSheetTotal) {
+    scoreSheetTotal.textContent = score <= 5 ? `${Number(score).toFixed(1)}/5` : `${Math.round(score * 100)}`;
+  }
+  if (scoreSheetRubric) scoreSheetRubric.textContent = rubric || '—';
+  if (scoreSheetOverlay) {
+    scoreSheetOverlay.removeAttribute('aria-hidden');
+    scoreSheetOverlay.classList.add('active');
+  }
+}
+
+function hideScoreSheet() {
+  if (scoreSheetOverlay) {
+    scoreSheetOverlay.setAttribute('aria-hidden', 'true');
+    scoreSheetOverlay.classList.remove('active');
   }
 }
 
@@ -324,6 +346,17 @@ async function connect() {
       dynacast: true,
     });
     room = newRoom;
+
+    newRoom.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+      if (room !== newRoom) return;
+      try {
+        const str = new TextDecoder().decode(payload);
+        const msg = JSON.parse(str) as { type?: string; description?: string; score?: number; rubric?: string };
+        if (msg.type === 'pitch_saved') {
+          showScoreSheet(msg.description ?? '—', msg.score ?? 0, msg.rubric ?? '');
+        }
+      } catch (_e) { /* ignore */ }
+    });
 
     newRoom.on(RoomEvent.Connected, async () => {
       console.log('Connected to room:', newRoom.name);
@@ -526,6 +559,7 @@ btnBackFromRubric?.addEventListener('click', () => showView('home'));
 btnStartPitch?.addEventListener('click', startPitchSession);
 btnBackFromPitch?.addEventListener('click', () => { showView('home'); loadPitches().then(renderPitchesList); });
 btnBackToPitches?.addEventListener('click', goHome);
+btnDoneScore?.addEventListener('click', () => { hideScoreSheet(); goHome(); });
 
 toggleGrokieBtn?.addEventListener('click', toggleGrokie);
 

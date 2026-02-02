@@ -8,49 +8,66 @@ LiveKit API Key: devkey
 
 Server is ready to accept connections...
 
-failed to insert item `16bd2c52-c3c5-4f66-a7e8-48d9bc2429e0`: Item with ID 16bd2c52-c3c5-4f66-a7e8-48d9bc2429e0 already exists.
-failed to insert item `9bb18329-95a0-46d1-a33c-a032da503708`: Item with ID 9bb18329-95a0-46d1-a33c-a032da503708 already exists.
-failed to insert item `a19dd702-5de2-4d9c-a66f-26289929a3a2`: Item with ID a19dd702-5de2-4d9c-a66f-26289929a3a2 already exists.
+failed to insert item `8948fc60-e213-4773-b247-ded965b4310a`: Item with ID 8948fc60-e213-4773-b247-ded965b4310a already exists.
 📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: investobot-1770016408593-qhbvtsi, user: investobot-1770016408593-qhbvtsi
+📁 Memory initialized for room: investobot-1770019926349-1z96cg1, user: investobot-1770019926349-1z96cg1
 ✅ Loaded context from memory files (including custom notes)
 📝 Context preview: ## Current Lesson Plan
 
 *No lesson plan yet. Start a lesson to create a plan.*
 ...
-📄 Saved pitch transcript to conversation_memory/investobot-1770016408593-qhbvtsi/investobot-1770016408593-qhbvtsi/pitches/pitch 1.md ('Physical AI cube with custom knowledge via speech', score=0.2500)
+📄 Saved pitch transcript to conversation_memory/investobot-1770019926349-1z96cg1/investobot-1770019926349-1z96cg1/pitches/pitch 1.md ('Speech-to-speech AI hardware like new Apple', score=2.1000)
 📄 Function called: save_pitch_transcript -> pitch 1.md
+✅ Sent pitch_saved to client (score=2.10)
 📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: investobot-1770016876497-kohwttk, user: investobot-1770016876497-kohwttk
+📁 Memory initialized for room: investobot-1770020728981-qepbkzh, user: investobot-1770020728981-qepbkzh
 ✅ Loaded context from memory files (including custom notes)
 📝 Context preview: ## Current Lesson Plan
 
 *No lesson plan yet. Start a lesson to create a plan.*
 ...
-failed to insert item `b1b8cbac-8298-403c-bd5e-60ff54ba03cc`: Item with ID b1b8cbac-8298-403c-bd5e-60ff54ba03cc already exists.
-📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: investobot-1770017802489-uwi2ekm, user: investobot-1770017802489-uwi2ekm
-✅ Loaded context from memory files (including custom notes)
-📝 Context preview: ## Current Lesson Plan
-
-*No lesson plan yet. Start a lesson to create a plan.*
-...
-📄 Saved pitch transcript to conversation_memory/investobot-1770017802489-uwi2ekm/investobot-1770017802489-uwi2ekm/pitches/pitch 1.md ('AI pet collars with early sales', score=5.0000)
+📄 Saved pitch transcript to conversation_memory/investobot-1770020728981-qepbkzh/investobot-1770020728981-qepbkzh/pitches/pitch 1.md ('AI pet collars', score=0.6000)
 📄 Function called: save_pitch_transcript -> pitch 1.md
+✅ Sent pitch_saved to client (score=0.60)
 📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: investobot-1770018486329-m9dwt1x, user: investobot-1770018486329-m9dwt1x
+📁 Memory initialized for room: investobot-1770020784493-uxm7g84, user: investobot-1770020784493-uxm7g84
 ✅ Loaded context from memory files (including custom notes)
 📝 Context preview: ## Current Lesson Plan
 
 *No lesson plan yet. Start a lesson to create a plan.*
 ...
-failed to insert item `69c36a28-c2bd-4166-acd0-f61c09a32652`: Item with ID 69c36a28-c2bd-4166-acd0-f61c09a32652 already exists.
-failed to insert item `69c36a28-c2bd-4166-acd0-f61c09a32652`: Item with ID 69c36a28-c2bd-4166-acd0-f61c09a32652 already exists.
-failed to insert item `69c36a28-c2bd-4166-acd0-f61c09a32652`: Item with ID 69c36a28-c2bd-4166-acd0-f61c09a32652 already exists.
+📄 Saved pitch transcript to conversation_memory/investobot-1770020784493-uxm7g84/investobot-1770020784493-uxm7g84/pitches/pitch 1.md ('"AI technology is not a safe language" - very brief pitch', score=0.2000)
+📄 Function called: save_pitch_transcript -> pitch 1.md
+✅ Sent pitch_saved to client (score=0.20)
+failed to insert item `83c037de-e845-418c-9206-bb7742635706`: Item with ID 83c037de-e845-418c-9206-bb7742635706 already exists.
 📂 Loaded 0 messages from conversation history
-📁 Memory initialized for room: investobot-1770019204712-rv0ft83, user: investobot-1770019204712-rv0ft83
+📁 Memory initialized for room: investobot-1770020828260-f0pf5di, user: investobot-1770020828260-f0pf5di
 ✅ Loaded context from memory files (including custom notes)
 📝 Context preview: ## Current Lesson Plan
 
 *No lesson plan yet. Start a lesson to create a plan.*
 ...
+📄 Saved pitch transcript to conversation_memory/investobot-1770020828260-f0pf5di/investobot-1770020828260-f0pf5di/pitches/pitch 1.md ('AI head pet collies', score=0.4000)
+📄 Function called: save_pitch_transcript -> pitch 1.md
+✅ Sent pitch_saved to client (score=0.40)
+failed to insert item `dd880efe-d7eb-4e37-b404-a16879cf83fa`: Item with ID dd880efe-d7eb-4e37-b404-a16879cf83fa already exists.
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: investobot-1770020878038-l9ziihb, user: investobot-1770020878038-l9ziihb
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
+
+*No lesson plan yet. Start a lesson to create a plan.*
+...
+📄 Saved pitch transcript to conversation_memory/investobot-1770020878038-l9ziihb/investobot-1770020878038-l9ziihb/pitches/pitch 1.md ('Vesty AI - self-made agent with $75 contract', score=1.2000)
+📄 Function called: save_pitch_transcript -> pitch 1.md
+✅ Sent pitch_saved to client (score=1.20)
+📂 Loaded 0 messages from conversation history
+📁 Memory initialized for room: investobot-1770021640479-4bksygz, user: investobot-1770021640479-4bksygz
+✅ Loaded context from memory files (including custom notes)
+📝 Context preview: ## Current Lesson Plan
+
+*No lesson plan yet. Start a lesson to create a plan.*
+...
+📄 Saved pitch transcript to conversation_memory/investobot-1770021640479-4bksygz/investobot-1770021640479-4bksygz/pitches/pitch 1.md ('Empty Pitch', score=0.0000)
+📄 Function called: save_pitch_transcript -> pitch 1.md
+✅ Sent pitch_saved to client (score=0.00)
