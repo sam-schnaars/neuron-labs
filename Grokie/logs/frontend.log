@@ -3,19 +3,7 @@
 > vite
 
 
-  VITE v5.4.21  ready in 162 ms
+  VITE v5.4.21  ready in 234 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
-12:26:20 AM [vite] page reload index.html
-12:26:57 AM [vite] page reload index.html
-12:27:45 AM [vite] page reload src/main.ts
-12:31:30 AM [vite] page reload index.html
-12:31:50 AM [vite] page reload index.html
-12:32:02 AM [vite] page reload index.html
-12:34:30 AM [vite] page reload src/main.ts
-12:34:32 AM [vite] page reload index.html
-12:34:43 AM [vite] page reload src/main.ts
-12:36:46 AM [vite] page reload src/main.ts
-12:39:24 AM [vite] page reload src/main.ts
-12:39:25 AM [vite] page reload src/main.ts
