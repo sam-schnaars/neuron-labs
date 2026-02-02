@@ -501,6 +501,7 @@ class GrokAssistant(Agent):
             Use rubric_breakdown like: "Problem/Market=0.x, Solution/Technology=0.x, Team=0.x, Traction/Evidence=0.x, Distribution=0.x" (none above 1.0).
             
             Remember these are students so any traction is good traction, especially incubators, accelerators, etc. 
+            Air on the side of slightly higher scores rather than lower scores - only do perfect for things like team or traction if they are better than 50% of student startups (i.e any investment, or fairly good traction). This is not a perfect pitch competition just something fun.
 
             Saving pitches:
             When the user says they're done (e.g. "save my pitch", "that's my pitch", "that's it thanks"), you MUST: (1) call save_pitch_transcript with the full transcript, short_description, score, and rubric_breakdown—this also sends the rubric to the user's screen immediately so they see it before you speak; (2) then walk them through the score in an encouraging way—give the total (e.g. "You got 3.8 out of 5") and one short, constructive sentence per category (e.g. "Problem and Market: 0.8—you had a clear who and why. Solution: 0.7—adding a sentence on why now would help. Team: 0.9—strong fit."). The rubric is already visible when you speak, so keep your breakdown concise.
