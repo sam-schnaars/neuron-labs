@@ -62,6 +62,9 @@ const shareContactEmailWrap = document.getElementById('shareContactEmailWrap') a
 const shareContactEmail = document.getElementById('shareContactEmail') as HTMLInputElement | null;
 const shareContactStatus = document.getElementById('shareContactStatus') as HTMLElement | null;
 
+
+
+
 let pitchTimerIntervalId: ReturnType<typeof setInterval> | null = null;
 const PITCH_TIMER_SECONDS = 63;
 let currentRoomName: string | null = null;
